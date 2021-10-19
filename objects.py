@@ -8,6 +8,7 @@ class Station:
     def __str__(self):
         return self.name
 
+
 class Route:
     def __init__(self, station1, station2):
         self.station1 = station1
@@ -20,3 +21,16 @@ class Route:
 
     def __str__(self):
         return f"{self.station1} <-> {self.station2}"
+
+
+class PassengerGroup:
+    def __init__(self, station, n_people):
+        self.station = station
+        self.n_people = n_people
+
+
+class Train:
+    def __init__(self, capacity):
+        self.speed = 0
+        self.station = None
+        self.capity = capacity
