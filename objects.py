@@ -1,9 +1,14 @@
+import numpy as np
+
 class Station:
     def __init__(self, x, y, capacity, name="1"):
         self.x = x
         self.y = y
         self.name = name
         self.capacity = capacity
+
+    def getencoding(self):
+        return np.asarray([0]*10)
 
     def __str__(self):
         return self.name
@@ -13,6 +18,7 @@ class Route:
     def __init__(self, station1, station2):
         self.station1 = station1
         self.station2 = station2
+        self.distance = ((station1.x-station2.x)**2 + (station1.y - station2.y))**(1/2)
 
     def __eq__(self, other):
         if self.station1 == other.station1 and self.station2 == other.station2: return True
@@ -24,9 +30,14 @@ class Route:
 
 
 class PassengerGroup:
-    def __init__(self, station, n_people):
-        self.station = station
+    def __init__(self, current_station, destination, n_people, target_time):
+        self.current_station = current_station
+        self.destination = destination
         self.n_people = n_people
+        self.target_time = target_time
+
+    def reached_destination(self):
+        return self.destination == self.current_station
 
 
 class Train:
