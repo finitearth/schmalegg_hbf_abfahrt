@@ -56,8 +56,10 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         edge_index = [[], []]
         for s1 in range(5):
             for s2 in range(5):
-                edge_index[0].append(s1)
-                edge_index[1].append(s2)
+                if s1 != s2:
+                    edge_index[0].append(s1)
+                    edge_index[1].append(s2)
+        edge_index = [range(5), range(5)]
         self.net = netsforreal.CustomNet(edge_index)
         # self.value_net = self.mlp_extractor.value_net
         # self.action_net = self.mlp_extractor.policy_net

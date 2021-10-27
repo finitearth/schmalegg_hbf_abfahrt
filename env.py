@@ -25,6 +25,7 @@ class AbfahrtEnv(gym.Env):
                 edge_index[0].append(s1)
                 edge_index[1].append(s2)
         self.edge_index = edge_index
+        self.reachable_stations = [0, 1, 2, 3, 4]
 
     def step(self, action):
         reward = 0
@@ -32,27 +33,37 @@ class AbfahrtEnv(gym.Env):
         info = {"huhu kann man lesen?": "Nein"}
         train_vector = np.array([1, 1, 1, 1])
         stop_vectors = [np.array(action[i:i + 4]) for i in range(0, action.size, 4)]
-        # print(action.size)
-        reachable_stations = []
-        for i in range(len(self.stations)):
-            if self.edge_index[0][i] == self.train_pos: reachable_stations.append(self.edge_index[1][i])
-        max_prod = float("-inf")
-        best_stop = -1
-        for station in reachable_stations:
-            dot_prod = np.dot((stop_vectors[station]), train_vector)
+       # print(stop_vectors[2])
+        #print(stop_vectors[0])
+
+        max_prod = -1000
+        best_stop = -1  # self.train_pos
+        for station in self.reachable_stations:
+
+            dot_prod = np.dot(stop_vectors[station], train_vector)
+           # print(f"Station: {station}: Prod: {dot_prod}")
             if dot_prod > max_prod:
+                #print("isch größa")
                 max_prod = dot_prod
                 best_stop = station
         self.train_pos = best_stop
-
+        assert 0 <= self.train_pos <= 4, "Train has no valid position"
         for passenger in self.passengers:
-            if 0 == self.train_pos: self.trains[0].passengers.append(passenger); self.stations[0].passengers = [0, 0, 0, 0, 0]
-            if self.train_pos == 2 and self.trains[0].passengers != []: done = True
+            if self.train_pos == 0:
+                self.trains[0].passengers.append(passenger)
+                self.stations[0].passengers = [0, 0, 0, 0, 0]
+
+            if self.train_pos == 2 and self.trains[0].passengers != []:
+                done = True
 
         if not done:  # passenger.reached_destination():
             reward -= 1
 
         observation = self.get_observation()
+        # print(self.passengers)
+        # print(self.train_pos)
+       #print(self.train_pos)
+      #  print(done)
         return observation, reward, done, info
 
     def reset(self):
