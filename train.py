@@ -1,6 +1,6 @@
 from stable_baselines3 import PPO, A2C, DQN  # DQN coming soon
 from stable_baselines3.common.env_util import make_vec_env
-from env import AbfahrtEnv, GoLeftEnv
+from env import AbfahrtEnv
 import policy
 from gym.spaces.box import Box
 from gym.spaces.space import Space
@@ -22,17 +22,17 @@ if __name__ == "__main__":
     from stable_baselines3.common.env_checker import check_env
 
     check_env(env)
-    env = make_vec_env(lambda: env, n_envs=1)
+    env = make_vec_env(lambda: env, n_envs=2)
 
     # Train the agent
 
     pol = policy.CustomActorCriticPolicy(observation_space, action_space, learningrate)
-    BATCH_SIZE = 3
-    KA_WAS_DAS = 2
+    BATCH_SIZE = 64
+    KA_WAS_DAS = 1_000
     N_STEPS = BATCH_SIZE * KA_WAS_DAS
-    model = PPO(policy.CustomActorCriticPolicy, env, verbose=1, batch_size=BATCH_SIZE, n_steps=N_STEPS).learn(KA_WAS_DAS)
+    model = PPO(policy.CustomActorCriticPolicy, env, verbose=2, batch_size=BATCH_SIZE, n_steps=N_STEPS).learn(KA_WAS_DAS)
 
-    # Test the trained agent
+   # Test the trained agent
 #     obs = env.reset()
 #     n_steps = 1
 #     for step in range(n_steps):

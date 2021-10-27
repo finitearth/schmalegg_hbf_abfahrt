@@ -28,15 +28,15 @@ def generate_random_routes(width=5, height=5, max_capacity=10, number_stations=1
 def generate_random_env():
     # erstmal immer die gleiche
     stations = [
-        objects.Station(0, 0, 1),
-        objects.Station(1, 1, 1),
-        objects.Station(0, 1, 1),
-        objects.Station(1, 0, 1),
-        objects.Station(0.5, 0.5, 1),
+        objects.Station(0, 0, 1, name=0),
+        objects.Station(1, 1, 1, name=1),
+        objects.Station(0, 1, 1, name=2),
+        objects.Station(1, 0, 1, name=3),
+        objects.Station(0.5, 0.5, 1, name=4),
     ]
 
     passengergroups = [objects.PassengerGroup(stations[0], stations[2], 1, None)]
 
-    trains = None  # TODO implement trains
+    trains = [objects.Train(1)]
 
     return stations, passengergroups, trains

@@ -16,14 +16,14 @@ class CustomNet(nn.Module):
         self.value_net = ValueNet()
         self.policy_net = PolicyNet(edge_index)
         self.latent_dim_pi = 20
-        self.latent_dim_vf = 20
+        self.latent_dim_vf = 1#20
        # self.forward_actor = self.policy_net
 
     def forward(self, x, use_sde=False):
         x_p = self.policy_net(x)
         # print("x_v requested from netsforreal")
-        #x_v = self.value_net(x_p)
-        return x_p, x_p
+        x_v = self.value_net(x_p)
+        return x_p, x_v
 
 
 class PolicyNet(nn.Module):
@@ -33,11 +33,12 @@ class PolicyNet(nn.Module):
 
         self.conv1 = GCNConv(NODE_FEATURES, 16, self.edge_index)
         self.conv2 = GCNConv(16, OUTPUT_FEATURES, self.edge_index)
+       # self.flatten = torch.flatten()
 
     def forward(self, x, use_sde=False):
-        #print(x.size())
-        if x.size(-1) == 20:
-            return x
+       # print(x.size(-1))
+       #  if x.size(-1) == 20:
+       #      return x
         #+
         # try:
         #     if x.size() <= torch.Size([50]):
@@ -51,21 +52,18 @@ class PolicyNet(nn.Module):
 
         # if x.size() != torch.Size([2, 20]):
 
-        y = torch.tensor([])
+        y = torch.empty((20,))
         for x_ in x:
             x_ = torch.reshape(x_, (5, 10))
             x_ = self.conv1(x_)
             x_ = F.relu(x_)
             x_ = self.conv2(x_)
+            x_ = x_.flatten()
 
-            x_ = torch.reshape(x_, (20,))
-            try:
-                y = torch.stack((y, x_))
-            except Exception as _:
-                y = x_
+            y = torch.vstack((y, x_))
 
         #print(y)
-        x = torch.Tensor(y)#, dtype=torch.float32)
+        x = torch.Tensor(y[1:])#, dtype=torch.float32)
     # elif x.size() == torch.Size([2, 20]):
     #     return x
 
