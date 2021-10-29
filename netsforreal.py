@@ -3,7 +3,6 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops
-import numpy as np
 
 NODE_FEATURES = 10
 OUTPUT_FEATURES = 4
@@ -51,10 +50,17 @@ class PolicyNet(nn.Module):
         #     raise _
 
         # if x.size() != torch.Size([2, 20]):
-
+        if x.size() == torch.Size((50,)):
+            x = torch.reshape(x, (5, 10))
+            x = self.conv1(x)
+            x = F.relu(x)
+            x = self.conv2(x)
+            x = x.flatten()
+            return x
         y = torch.empty((20,))
         for x_ in x:
             x_ = torch.reshape(x_, (5, 10))
+
             x_ = self.conv1(x_)
             x_ = F.relu(x_)
             x_ = self.conv2(x_)

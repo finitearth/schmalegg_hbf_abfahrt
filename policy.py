@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch as th
 import netsforreal
 from stable_baselines3.common.distributions import DiagGaussianDistribution, CategoricalDistribution, StateDependentNoiseDistribution
-import numpy as np
 import gym
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -69,9 +68,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         #self.value_net = netsforreal.ValueNet(edge_index)
         #self.action_net = netsforreal.PolicyNet(edge_index)
         # self.log_std = 5
-        self.log_std = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
-        self.log_std2 = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
-        self.optimizer = th.optim.Adam(self.parameters())
+        # self.log_std = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
+        # self.log_std2 = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
+        # self.optimizer = th.optim.Adam(self.parameters())
 
     # def _build_mlp_extractor(self) -> None:
     #     self.mlp_extractor = self.net
@@ -132,4 +131,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         log_prob = distribution.log_prob(actions)
         values = latent_vf# self.value_net(latent_vf)
         return values, log_prob, distribution.entropy()
+
+    def predict(self, obs, state=None, mask=None, deterministic=False):
+        obs = th.as_tensor(obs)
+        actions, _ = self.net(obs)
+        return actions
 

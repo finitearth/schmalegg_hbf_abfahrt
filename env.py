@@ -26,12 +26,16 @@ class AbfahrtEnv(gym.Env):
                 edge_index[1].append(s2)
         self.edge_index = edge_index
         self.reachable_stations = [0, 1, 2, 3, 4]
+        self.i = 0
 
     def step(self, action):
+        self.i += 1
+        #print(action)
         reward = 0
         done = False
         info = {"huhu kann man lesen?": "Nein"}
         train_vector = np.array([1, 1, 1, 1])
+        #print(type(action))
         stop_vectors = [np.array(action[i:i + 4]) for i in range(0, action.size, 4)]
        # print(stop_vectors[2])
         #print(stop_vectors[0])
@@ -42,22 +46,30 @@ class AbfahrtEnv(gym.Env):
 
             dot_prod = np.dot(stop_vectors[station], train_vector)
            # print(f"Station: {station}: Prod: {dot_prod}")
-            if dot_prod > max_prod:
+            if dot_prod > max_prod and station != self.train_pos:
                 #print("isch größa")
                 max_prod = dot_prod
                 best_stop = station
         self.train_pos = best_stop
         assert 0 <= self.train_pos <= 4, "Train has no valid position"
+
         for passenger in self.passengers:
             if self.train_pos == 0:
+              #  print("eingstige", self.i)
                 self.trains[0].passengers.append(passenger)
                 self.stations[0].passengers = [0, 0, 0, 0, 0]
+                reward += 5
+
 
             if self.train_pos == 2 and self.trains[0].passengers != []:
+                #print("ausgstige", self.i)
+                reward += 10
                 done = True
 
         if not done:  # passenger.reached_destination():
-            reward -= 1
+            reward -= 10
+
+        else: print("ziel erreicht", self.i)
 
         observation = self.get_observation()
         # print(self.passengers)
