@@ -7,13 +7,13 @@ class Station:
         self.y = y
         self.name = name
         self.capacity = capacity
-        self.passengers = [0, 1, 0, 0, 0]
+        self.passengers = [0, 0, 0, 0, 0]
 
     def getencoding(self):
         l = [0] * 5
         l[self.name] = 1
 
-        return np.hstack((l, self.passengers))
+        return np.hstack([l, self.passengers]).astype(np.float32)
 
     def __str__(self):
         return self.name

@@ -1,16 +1,12 @@
 import generate_random
+import VisualizationGraphs
+
+import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    for _ in range(1000):
-        routes = generate_random.generate_random_routes()
-
-        for route1 in routes:
-            c = 0
-            for route2 in routes:
-                if route1 == route2:
-                    c += 1
-                if c == 2:
-                    print("ALLLLLLLLLLAAAAAAAAAAAARM")
+    routes = generate_random.generate_random_routes()
 
     for route in routes:
         print(route)
+    VisualizationGraphs.create_nx_graph(routes)
+    plt.show()

@@ -2,11 +2,11 @@ import random
 import objects
 
 
-def generate_random_routes(width=5, height=5, max_capacity=10, number_stations=10):
-    edge_proneness = random.random()
+def generate_random_routes(width=5, height=5, max_capacity=10, number_stations=20):
+    edge_proneness = random.random()*0.2
 
     stations = []
-    for i, _ in enumerate(range(number_stations)):
+    for i in range(number_stations):
         x = random.random() * width
         y = random.random() * height
         capacity = random.random() * max_capacity

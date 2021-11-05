@@ -1,6 +1,6 @@
 from stable_baselines3 import PPO, A2C, DQN, SAC  # DQN coming soon
 from stable_baselines3.common.env_util import make_vec_env
-from env import AbfahrtEnv
+from envforreal2 import AbfahrtEnv
 import policy
 from gym.spaces.box import Box
 from gym.spaces.space import Space
@@ -11,59 +11,56 @@ from stable_baselines3.common.env_checker import check_env
 from time import sleep
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import nets.netsgat as net
+import torch
 
 
 def learningrate(_):
-    return 10 ** -4
+    return 10 ** -3
 
 
-def eval_model():
+def eval_model(model):
     # print("\n === STARTING EVALUATION === \n ===============================")
     obs = env.reset()
     n_steps = 20
     for step in tqdm(range(n_steps), disable=True):
         # print(obs)
-        action = model.predict(obs, deterministic=True)
+        action = model.predict(torch.Tensor(obs))  # , deterministic=True)
 
-        # print("\n ===  Step {}  ===".format(step + 1))
-        # print("Action: ", action)
-        #  print(step)
-        obs, reward, done, info = env.step(action.detach().numpy())
+        # action = action.flatten()
+        obs, reward, done, info = env.step(action)
         # print('obs=', obs, 'reward=', reward, 'done=', done)
         #        env.render(mode='console')
         if done:
             # Note that the VecEnv resets automatically
             # when a done signal is encountered
-            print("Goal reached!", "reward=", reward)
+
+            # print("Goal reached!", "reward=", reward)
             break
     return step + 1
 
 
-BATCH_SIZE = 10
-N_STEPS = 10
-KA_WAS_DAS = BATCH_SIZE * N_STEPS
+BATCH_SIZE = 2000
+N_STEPS = 200
+TOTAL_STEPS = BATCH_SIZE * N_STEPS * 100
 n_episodes = 1
-N_ENVS = 10
+N_ENVS = 1
+
+VERBOSE = 1
+
+
 if __name__ == "__main__":
-    observation_space = Box(0, 1, shape=(50,), dtype=np.float32)
-    action_space = Box(-1, 1, shape=(20,), dtype=np.float32)
+    observation_space = Box(0, 1, shape=(5, 10), dtype=np.float32)
+    action_space = Box(float("-inf"), float("inf"), shape=(20,), dtype=np.float32)
     # Instantiate the env
     env = AbfahrtEnv(observation_space, action_space)
     env.reset()
-    check_env(env)
+    #check_env(env)
     multi_env = make_vec_env(lambda: env, n_envs=N_ENVS)
 
     # Train the agent
-    pol = policy.CustomActorCriticPolicy  # (observation_space, action_space, learningrate)
+    pol = net.CustomActorCriticPolicy
 
-    model = PPO(pol, multi_env, verbose=0, batch_size=BATCH_SIZE, n_steps=N_STEPS)
-    steps_it_took = []
-    episode = []
-    for n in tqdm(range(200)):
-        # model.learn(KA_WAS_DAS)
-        model = model.learn(total_timesteps=int(KA_WAS_DAS))
-        steps_it_took.append(eval_model())
-        episode.append(n)
+    model = PPO(pol, multi_env, verbose=VERBOSE, learning_rate=learningrate, batch_size=BATCH_SIZE, n_steps=N_STEPS)
+    model.learn(TOTAL_STEPS)
 
-    plt.plot(episode, steps_it_took)
-    plt.show()

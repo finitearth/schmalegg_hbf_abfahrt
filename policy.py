@@ -3,7 +3,8 @@ from stable_baselines3.common.type_aliases import Schedule
 from stable_baselines3.common.distributions import make_proba_distribution
 import torch.nn as nn
 import torch as th
-import netsforreal
+import nets.netsgat as netsforreal
+
 from stable_baselines3.common.distributions import DiagGaussianDistribution, CategoricalDistribution, StateDependentNoiseDistribution
 import gym
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
@@ -58,7 +59,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
                 if s1 != s2:
                     edge_index[0].append(s1)
                     edge_index[1].append(s2)
-        edge_index = [range(5), range(5)]
+      # edge_index = [range(5), range(5)]
         self.net = netsforreal.CustomNet(edge_index)
         # self.value_net = self.mlp_extractor.value_net
         # self.action_net = self.mlp_extractor.policy_net
