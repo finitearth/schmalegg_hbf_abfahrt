@@ -3,20 +3,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def create_nx_graph(routes):
-    graph = {}
-    for route in routes:
-        graph[str(route.station1)] = str(route.station2)
+def create_nx_graph(station1s, station2s):
+    graph = list(zip(station1s, station2s))
 
-   # print(graph)
     nx_graph = nx.Graph()
-    for node_id in graph.keys():
-        #print(node_id)
-        zoom = 0.5
-        nx_graph.add_node(str(node_id), zoom=zoom)
-    for source, connections in graph.items():
-        for target in connections:
-            nx_graph.add_edge(source, target)#, weight=12)
+    for station in set(station1s):
+        nx_graph.add_node(station)
+    for source, target in graph:
+        nx_graph.add_edge(source, target)
+
+    # graph.sort(key=lambda t: (int(t[0].__repr__()), int(t[1].__repr__())))
+    # print(graph)
+    # print(len(station1s)**0.5)
 
     graph_nx = nx.draw(nx_graph, with_labels=True)
     return graph_nx

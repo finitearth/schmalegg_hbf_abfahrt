@@ -6,7 +6,7 @@ import numpy as np
 import random
 from gym.spaces import box
 
-import generate_random
+import generate_envs
 import objects
 
 
@@ -76,7 +76,7 @@ class AbfahrtEnv(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
-        self.stations, self.passengers, self.trains = generate_random.generate_random_env()
+        self.stations, self.passengers, self.trains = generate_envs.generate_random_env()
 
         return self.get_observation()
 

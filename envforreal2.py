@@ -6,101 +6,128 @@ from gym.utils import seeding
 import numpy as np
 import random
 from gym.spaces import box
+from torch_geometric.data import Data, HeteroData
 
-import generate_random
+import generate_envs
 import objects
+import random
+
+OUTPUT_VECTOR_SIZE = 2
 
 
 class AbfahrtEnv(gym.Env):
     def __init__(self, observation_space, action_space):
         super(AbfahrtEnv, self).__init__()
-        self.passengers = []
         self.stations = []
         self.trains = []
         self.observation_space = observation_space
         self.action_space = action_space
-        self.train_pos = 0
-        edge_index = [[], []]
-        for s1 in range(5):
-            for s2 in range(5):
-                edge_index[0].append(s1)
-                edge_index[1].append(s2)
-        #edge_index = [range(5), range(5)]
-        self.edge_index = edge_index
-        self.reachable_stations = [0, 1, 2, 3, 4]
-        self.i = 0
+        self.score = 0
+        self.routes = np.zeros((100, 100))
+        # self.keys = "str"
+        self.k = 0
 
     def step(self, action):
-        self.i += 1
+        self.k += 1
+        info = {}
+        action = action[:OUTPUT_VECTOR_SIZE * len(self.stations)]
 
-        reward = 0
-        done = False
-        info = {"huhu kann man lesen?": "Nein"}
-        train_vector = torch.tensor([1.0]*4)
+        for i, station in enumerate(self.stations):
+            station.vector = action[i * OUTPUT_VECTOR_SIZE:(i + 1) * OUTPUT_VECTOR_SIZE]
 
-        stop_vectors = torch.tensor([action[i:i + 4] for i in range(0, action.size, 4)])
+        for train in self.trains:
+            # check if reached destination; if not: skip
+            if not train.reached_next_stop(): continue
 
-       # self.train_pos = torch.argmax(stop_vectors @ train_vector)
+            # deboard and onboard passengers
+            for p in train.passengers: train.deboard(p)
 
-        # print("\n ===")
-        # print(self.train_pos)
-        max_prod = -1000
+            while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
+                dot_products = np.asarray(
+                    [train.station.vector @ p.destination.vector for p in train.station.passengers])
+                idx = np.argmax(dot_products)
+                if dot_products[idx] > 0:
+                    train.onboard(train.station.passengers[idx])
+                else: break
 
-        best_stop = -1  # self.train_pos
-        for station in self.reachable_stations:
+            # route to the next stop
+            if len(train.passengers) > 0:
+                train_vector = np.sum([p.destination.vector for p in train.passengers], axis=0)
+            else:
+                train_vector = np.asarray([1] * OUTPUT_VECTOR_SIZE)
 
-            dot_prod = stop_vectors[station] @ train_vector
-            # print(f"Station: {station}: Prod: {dot_prod}")
+            next_stop_idx = np.argmax([train_vector.T @ s.vector for s in train.station.reachable_stops])
+            train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
-            if dot_prod > max_prod and station != self.train_pos:
-                #print("isch größa")
-                max_prod = dot_prod
-                best_stop = station
-        self.train_pos = best_stop
-        assert 0 <= self.train_pos <= 4, "Train has no valid position"
-        # print(self.train_pos)
-        # print("\n ===")
+        score = np.sum([len(s.passengers) for s in self.stations])
+        score += np.sum([len(t.passengers) for t in self.trains])
+        reward = (self.score - score)*5 - 1
+        self.score = score
+        # reward = -1.0
 
-        if self.train_pos == torch.tensor(0):
-          #  print("eingstige", self.i)
-            self.trains[0].passengers.append(self.passengers[0])
-            self.stations[0].passengers = [0, 0, 0, 0, 0]
-            #reward += 5
+        done = bool((np.sum([len(s.passengers) for s in self.stations]) + np.sum(
+            [len(t.passengers) for t in self.trains])) == 0)
 
-
-        if self.train_pos == torch.tensor(2) and self.trains[0].passengers != []:
-            #print("ausgstige", self.i)
-            #reward += 10
-            done = True
-
-        if not done:  # passenger.reached_destination():
-            reward -= 1
-
-        #else: print("ziel erreicht", self.i)
-
+        # if done: reward = +5.0
         observation = self.get_observation()
-        # print(self.passengers)
-        # print(self.train_pos)
-       #print(self.train_pos)
-      #  print(done)
         return observation, reward, done, info
 
-    def reset(self):
-        self.stations, self.passengers, self.trains = generate_random.generate_random_env()
-
+    def reset(self, mode="train"):
+        self.score = np.sum([len(s.passengers) for s in self.stations])
+        if mode == "train":
+            # Generate random enviroment for training
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()#
+        elif mode == "eval":
+            # Generate evaluation enviroment
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#
         return self.get_observation()
 
     def render(self, mode="human"):
         raise NotImplementedError
 
     def get_observation(self):
-        observation = self.stations[0].getencoding()
-        for station in self.stations[1:]:
-            observation = np.vstack((observation, station.getencoding()))
-        #observation = np.asarray(observation, dtype=np.float32).flatten()
-        self.observation = observation
+        n_stations = len(self.stations)
 
-        return observation
+        edge_index_connections0 = self.routes[0]
+        n_edge_connections = len(edge_index_connections0)
+        edge_index_connections0 = np.resize(edge_index_connections0, 100)
+
+        edge_index_connections1 = self.routes[1]
+        edge_index_connections1 = np.resize(edge_index_connections1, 100)
+
+        edge_index_destination0 = []
+        edge_index_destination1 = []
+        n_passenger = 0
+        for s in self.stations:
+            for p in s.passengers:
+                edge_index_destination0 += [int(s)]
+                edge_index_destination1 += [int(p.destination)]
+                n_passenger += 1
+        for t in self.trains:
+            for p in t.passengers:
+                edge_index_destination0 += [int(t.destination)]
+                edge_index_destination1 += [int(p.destination)]
+                n_passenger += 1
+        edge_index_destination0 = np.asarray(edge_index_destination0)
+        edge_index_destination0 = np.resize(edge_index_destination0, 1000)
+        edge_index_destination1 = np.asarray(edge_index_destination1)
+        edge_index_destination1 = np.resize(edge_index_destination1, 1000)
+
+        input_vectors = np.hstack([s.getencoding() for s in self.stations])
+        input_vectors = torch.tensor(np.resize(input_vectors, 1000))
+
+        return np.hstack((
+            edge_index_connections0,
+            edge_index_connections1,
+            edge_index_destination1,  # ###weil die information von zielbahnhof zu aktuellem bahnhof fließen muss
+            edge_index_destination0,  #################
+            input_vectors,
+            n_passenger,
+            n_edge_connections,
+            n_stations
+        ))
+        # return CustomData(x=input_vectors, edge_index_destinations=[edge_index_destination0, edge_index_destination1],
+        #                   edge_index_connections=self.routes)
 
     def close(self):
         pass
