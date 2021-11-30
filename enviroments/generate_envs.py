@@ -87,7 +87,7 @@ def generate_example_enviroment():
 
     stations[1].passengers = [objects.PassengerGroup(stations[0], 21, 0)]
     # stations[2].passengers = [objects.PassengerGroup(stations[1], 21, 0)]
-    # stations[4].passengers = [objects.PassengerGroup(stations[3], 21, 0)]
+    stations[4].passengers = [objects.PassengerGroup(stations[3], 21, 0)]
 
     trains = [objects.Train(stations[3], 4)]
 

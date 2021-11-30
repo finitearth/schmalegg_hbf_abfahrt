@@ -1,0 +1,1489 @@
+diff --git a/VisualizationGraphs.py b/VisualizationGraphs.py
+deleted file mode 100644
+index 014a198..0000000
+--- a/VisualizationGraphs.py
++++ /dev/null
+@@ -1,21 +0,0 @@
+-import networkx as nx
+-import numpy as np
+-import pandas as pd
+-import matplotlib.pyplot as plt
+-
+-def create_nx_graph(station1s, station2s):
+-    graph = list(zip(station1s, station2s))
+-
+-    nx_graph = nx.Graph()
+-    for station in set(station1s):
+-        nx_graph.add_node(station)
+-    for source, target in graph:
+-        nx_graph.add_edge(source, target)
+-
+-    # graph.sort(key=lambda t: (int(t[0].__repr__()), int(t[1].__repr__())))
+-    # print(graph)
+-    # print(len(station1s)**0.5)
+-
+-    graph_nx = nx.draw(nx_graph, with_labels=True)
+-    return graph_nx
+-   
+diff --git a/__pycache__/VisualizationGraphs.cpython-38.pyc b/__pycache__/VisualizationGraphs.cpython-38.pyc
+deleted file mode 100644
+index 18b7cdc..0000000
+Binary files a/__pycache__/VisualizationGraphs.cpython-38.pyc and /dev/null differ
+diff --git a/__pycache__/env.cpython-38.pyc b/__pycache__/env.cpython-38.pyc
+deleted file mode 100644
+index 709e66e..0000000
+Binary files a/__pycache__/env.cpython-38.pyc and /dev/null differ
+diff --git a/__pycache__/env.cpython-39.pyc b/__pycache__/env.cpython-39.pyc
+deleted file mode 100644
+index a4a783c..0000000
+Binary files a/__pycache__/env.cpython-39.pyc and /dev/null differ
+diff --git a/__pycache__/envforreal2.cpython-38.pyc b/__pycache__/envforreal2.cpython-38.pyc
+deleted file mode 100644
+index 9414e3e..0000000
+Binary files a/__pycache__/envforreal2.cpython-38.pyc and /dev/null differ
+diff --git a/__pycache__/generate_random.cpython-38.pyc b/__pycache__/generate_random.cpython-38.pyc
+deleted file mode 100644
+index f943679..0000000
+Binary files a/__pycache__/generate_random.cpython-38.pyc and /dev/null differ
+diff --git a/__pycache__/generate_random.cpython-39.pyc b/__pycache__/generate_random.cpython-39.pyc
+deleted file mode 100644
+index fc82e8d..0000000
+Binary files a/__pycache__/generate_random.cpython-39.pyc and /dev/null differ
+diff --git a/__pycache__/objects.cpython-38.pyc b/__pycache__/objects.cpython-38.pyc
+index 3ab0f46..656e8f0 100644
+Binary files a/__pycache__/objects.cpython-38.pyc and b/__pycache__/objects.cpython-38.pyc differ
+diff --git a/__pycache__/policy.cpython-38.pyc b/__pycache__/policy.cpython-38.pyc
+deleted file mode 100644
+index 0e6a342..0000000
+Binary files a/__pycache__/policy.cpython-38.pyc and /dev/null differ
+diff --git a/__pycache__/policy.cpython-39.pyc b/__pycache__/policy.cpython-39.pyc
+deleted file mode 100644
+index b1668e5..0000000
+Binary files a/__pycache__/policy.cpython-39.pyc and /dev/null differ
+diff --git a/env.py b/env.py
+deleted file mode 100644
+index 40d9c39..0000000
+--- a/env.py
++++ /dev/null
+@@ -1,96 +0,0 @@
+-import math
+-import gym
+-from gym import spaces, logger
+-from gym.utils import seeding
+-import numpy as np
+-import random
+-from gym.spaces import box
+-
+-import generate_envs
+-import objects
+-
+-
+-class AbfahrtEnv(gym.Env):
+-    def __init__(self, observation_space, action_space):
+-        super(AbfahrtEnv, self).__init__()
+-        self.passengers = []
+-        self.stations = []
+-        self.trains = []
+-        self.observation_space = observation_space
+-        self.action_space = action_space
+-        self.train_pos = 0
+-        edge_index = [[], []]
+-        for s1 in range(5):
+-            for s2 in range(5):
+-                if s1 != s2:
+-                    edge_index[0].append(s1)
+-                    edge_index[1].append(s2)
+-        #edge_index = [range(5), range(5)]
+-        self.edge_index = edge_index
+-        self.reachable_stations = [0, 1, 2, 3, 4]
+-        self.i = 0
+-
+-    def step(self, action):
+-        self.i += 1
+-        #print(action)
+-        reward = 0
+-        done = False
+-        info = {"huhu kann man lesen?": "Nein"}
+-        train_vector = np.array([1, 1, 1, 1])
+-        #print(type(action))
+-        stop_vectors = [np.array(action[i:i + 4]) for i in range(0, action.size, 4)]
+-       # print(stop_vectors[2])
+-        #print(stop_vectors[0])
+-
+-        max_prod = -1000
+-        best_stop = -1  # self.train_pos
+-        for station in self.reachable_stations:
+-
+-            dot_prod = np.dot(stop_vectors[station], train_vector)
+-           # print(f"Station: {station}: Prod: {dot_prod}")
+-            if dot_prod > max_prod and station != self.train_pos:
+-                #print("isch größa")
+-                max_prod = dot_prod
+-                best_stop = station
+-        self.train_pos = best_stop
+-        assert 0 <= self.train_pos <= 4, "Train has no valid position"
+-
+-        if self.train_pos == 0:
+-          #  print("eingstige", self.i)
+-            self.trains[0].passengers.append(self.passengers[0])
+-            self.stations[0].passengers = [0, 0, 0, 0, 0]
+-            #reward += 5
+-
+-
+-        if self.train_pos == 2 and self.trains[0].passengers != []:
+-            #print("ausgstige", self.i)
+-            #reward += 10
+-            done = True
+-
+-        if not done:  # passenger.reached_destination():
+-            reward -= 100
+-
+-      #  else: print("ziel erreicht", self.i)
+-
+-        observation = self.get_observation()
+-        return observation, reward, done, info
+-
+-    def reset(self):
+-        self.stations, self.passengers, self.trains = generate_envs.generate_random_env()
+-
+-        return self.get_observation()
+-
+-    def render(self, mode="human"):
+-        raise NotImplementedError
+-
+-    def get_observation(self):
+-        observation = []
+-        for station in self.stations:
+-            observation.append(station.getencoding())
+-        observation = np.asarray(observation, dtype=np.float32).flatten()
+-        self.observation = observation
+-
+-        return observation
+-
+-    def close(self):
+-        pass
+diff --git a/envforreal2.py b/enviroments/env.py
+similarity index 94%
+rename from envforreal2.py
+rename to enviroments/env.py
+index e4b9799..8e62d79 100644
+--- a/envforreal2.py
++++ b/enviroments/env.py
+@@ -1,16 +1,7 @@
+-import math
+ import gym
+ import torch
+-from gym import spaces, logger
+-from gym.utils import seeding
+ import numpy as np
+-import random
+-from gym.spaces import box
+-from torch_geometric.data import Data, HeteroData
+-
+-import generate_envs
+-import objects
+-import random
++from enviroments import generate_envs
+ 
+ OUTPUT_VECTOR_SIZE = 2
+ 
+@@ -24,10 +15,10 @@ class AbfahrtEnv(gym.Env):
+         self.action_space = action_space
+         self.score = 0
+         self.routes = np.zeros((100, 100))
+-        # self.keys = "str"
+         self.k = 0
+ 
+     def step(self, action):
++        # print(action)
+         self.k += 1
+         info = {}
+         action = action[:OUTPUT_VECTOR_SIZE * len(self.stations)]
+@@ -68,7 +59,7 @@ class AbfahrtEnv(gym.Env):
+         done = bool((np.sum([len(s.passengers) for s in self.stations]) + np.sum(
+             [len(t.passengers) for t in self.trains])) == 0)
+ 
+-        # if done: reward = +5.0
++        if done: reward = +5.0
+         observation = self.get_observation()
+         return observation, reward, done, info
+ 
+@@ -79,7 +70,7 @@ class AbfahrtEnv(gym.Env):
+             self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()#
+         elif mode == "eval":
+             # Generate evaluation enviroment
+-            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#
++            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()
+         return self.get_observation()
+ 
+     def render(self, mode="human"):
+diff --git a/generate_envs.py b/enviroments/generate_envs.py
+similarity index 97%
+rename from generate_envs.py
+rename to enviroments/generate_envs.py
+index 666106b..71da85d 100644
+--- a/generate_envs.py
++++ b/enviroments/generate_envs.py
+@@ -87,7 +87,7 @@ def generate_example_enviroment():
+ 
+     stations[1].passengers = [objects.PassengerGroup(stations[0], 21, 0)]
+     # stations[2].passengers = [objects.PassengerGroup(stations[1], 21, 0)]
+-    # stations[4].passengers = [objects.PassengerGroup(stations[3], 21, 0)]
++    stations[4].passengers = [objects.PassengerGroup(stations[3], 21, 0)]
+ 
+     trains = [objects.Train(stations[3], 4)]
+ 
+diff --git a/finaltest.zip b/finaltest.zip
+deleted file mode 100644
+index 1746b10..0000000
+Binary files a/finaltest.zip and /dev/null differ
+diff --git a/lkasdjfk.py b/lkasdjfk.py
+deleted file mode 100644
+index 46d4c03..0000000
+--- a/lkasdjfk.py
++++ /dev/null
+@@ -1,7 +0,0 @@
+-import torch as th
+-import torch.nn.functional as F
+-import numpy as np
+-
+-t = np.asarray([1, 2, 2])
+-
+-print(np.argmax(t))
+diff --git a/models/mmmmodel.zip b/models/mmmmodel.zip
+deleted file mode 100644
+index 406546e..0000000
+Binary files a/models/mmmmodel.zip and /dev/null differ
+diff --git a/models/test.zip b/models/test.zip
+deleted file mode 100644
+index d422a0b..0000000
+Binary files a/models/test.zip and /dev/null differ
+diff --git a/nets/__pycache__/netsforreal.cpython-38.pyc b/nets/__pycache__/netsforreal.cpython-38.pyc
+deleted file mode 100644
+index 2bf8d54..0000000
+Binary files a/nets/__pycache__/netsforreal.cpython-38.pyc and /dev/null differ
+diff --git a/nets/__pycache__/netsgat.cpython-38.pyc b/nets/__pycache__/netsgat.cpython-38.pyc
+deleted file mode 100644
+index 7c67932..0000000
+Binary files a/nets/__pycache__/netsgat.cpython-38.pyc and /dev/null differ
+diff --git a/nets/__pycache__/netsgat.cpython-39.pyc b/nets/__pycache__/netsgat.cpython-39.pyc
+deleted file mode 100644
+index d241bc0..0000000
+Binary files a/nets/__pycache__/netsgat.cpython-39.pyc and /dev/null differ
+diff --git a/nets/nets.py b/nets/nets.py
+deleted file mode 100644
+index 3ae64cd..0000000
+--- a/nets/nets.py
++++ /dev/null
+@@ -1,124 +0,0 @@
+-from torch_geometric.datasets import Planetoid
+-import torch
+-import torch.nn.functional as F
+-from torch_geometric.nn import MessagePassing
+-from torch_geometric.utils import add_self_loops, degree
+-import networkx as nx
+-import numpy as np
+-import matplotlib.pyplot as plt
+-
+-
+-class GCNConv(MessagePassing):
+-    def __init__(self, in_channels, out_channels):
+-        super(GCNConv, self).__init__(aggr='add')  # "Add" aggregation
+-        self.lin = torch.nn.Linear(in_channels, out_channels)
+-
+-    def forward(self, x, edge_index):
+-        # Step 1: Add self-loops
+-        edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+-
+-        # Step 2: Multiply with weights
+-        x = self.lin(x)
+-
+-        # Step 3: Calculate the normalization
+-        row, col = edge_index
+-        deg = degree(row, x.size(0), dtype=x.dtype)
+-        deg_inv_sqrt = deg.pow(-0.5)
+-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+-
+-        # Step 4: Propagate the embeddings to the next layer
+-        return self.propagate(edge_index, size=(x.size(0), x.size(0)), x=x,
+-                              norm=norm)
+-
+-    def message(self, x_j, norm):
+-        # Normalize node features.
+-        return norm.view(-1, 1) * x_j
+-
+-
+-class Net(torch.nn.Module):
+-    def __init__(self, dataset):
+-        super(Net, self).__init__()
+-        self.conv1 = GCNConv(dataset.num_node_features, 16)
+-        self.conv2 = GCNConv(16, dataset.num_classes)
+-
+-    def forward(self, data):
+-        x, edge_index = data.x, data.edge_index
+-
+-        x = self.conv1(x, edge_index)
+-        x = F.relu(x)
+-        x = F.dropout(x, training=self.training)
+-        x = self.conv2(x, edge_index)
+-
+-        return F.log_softmax(x, dim=1)
+-
+-
+-def plot_dataset(dataset):
+-    edges_raw = dataset.data.edge_index.numpy()
+-    edges = [(x, y) for x, y in zip(edges_raw[0, :], edges_raw[1, :])]
+-    labels = dataset.data.y.numpy()
+-
+-    G = nx.Graph()
+-    G.add_nodes_from(list(range(np.max(edges_raw))))
+-    G.add_edges_from(edges)
+-    plt.subplot(111)
+-    options = {
+-        'node_size': 30,
+-        'width': 0.2,
+-    }
+-    nx.draw(G, with_labels=False, node_color=labels.tolist(), cmap=plt.cm.tab10, font_weight='bold', **options)
+-    plt.show()
+-
+-
+-def test(data, train=True):
+-    model.eval()
+-
+-    correct = 0
+-    pred = model(data).max(dim=1)[1]
+-
+-    if train:
+-        correct += pred[data.train_mask].eq(data.y[data.train_mask]).sum().item()
+-        return correct / (len(data.y[data.train_mask]))
+-    else:
+-        correct += pred[data.test_mask].eq(data.y[data.test_mask]).sum().item()
+-        return correct / (len(data.y[data.test_mask]))
+-
+-
+-def train(data, plot=False):
+-    train_accuracies, test_accuracies = list(), list()
+-    for epoch in range(100):
+-        model.train()
+-        optimizer.zero_grad()
+-        out = model(data)
+-        loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
+-        loss.backward()
+-        optimizer.step()
+-
+-        train_acc = test(data)
+-        test_acc = test(data, train=False)
+-
+-        train_accuracies.append(train_acc)
+-        test_accuracies.append(test_acc)
+-        print('Epoch: {:03d}, Loss: {:.5f}, Train Acc: {:.5f}, Test Acc: {:.5f}'.
+-              format(epoch, loss, train_acc, test_acc))
+-
+-    if plot:
+-        plt.plot(train_accuracies, label="Train accuracy")
+-        plt.plot(test_accuracies, label="Validation accuracy")
+-        plt.xlabel("# Epoch")
+-        plt.ylabel("Accuracy")
+-        plt.legend(loc='upper right')
+-        plt.show()
+-
+-
+-if __name__ == "__main__":
+-    dataset = Planetoid(root='/tmp/Cora', name='Cora')
+-
+-  #  plot_dataset(dataset)
+-
+-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+-    model = Net(dataset).to(device)
+-    data = dataset[0].to(device)
+-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+-
+-    train(data, plot=True)
+-    print(model.state_dict().keys())
+\ No newline at end of file
+diff --git a/nets/nets2.py b/nets/nets2.py
+deleted file mode 100644
+index 086f3b2..0000000
+--- a/nets/nets2.py
++++ /dev/null
+@@ -1,123 +0,0 @@
+-from torch_geometric.datasets import Planetoid
+-import torch.nn as nn
+-import torch.nn.functional as F
+-from torch_geometric.nn import MessagePassing
+-from torch_geometric.utils import add_self_loops, degree
+-import networkx as nx
+-import numpy as np
+-import matplotlib.pyplot as plt
+-import torch
+-from tqdm import tqdm
+-
+-
+-class GCNConv(MessagePassing):
+-    def __init__(self, in_channels, out_channels):
+-        super(GCNConv, self).__init__(aggr='add')  # "Add" aggregation
+-        hidden_channels = 128
+-        self.lin1 = nn.Linear(in_channels, hidden_channels)
+-        self.lin2 = nn.Linear(hidden_channels, out_channels)
+-
+-    def forward(self, x, edge_index):
+-        # Step 1: Add self-loops
+-        edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+-
+-        # Step 2: Multiply with weights
+-
+-        x = self.lin1(x)
+-        x = self.lin2(x)
+-
+-
+-        # Step 4: Propagate the embeddings to the next layer
+-        return self.propagate(edge_index, size=(x.size(0), x.size(0)), x=x)
+-    
+-
+-class Net(nn.Module):
+-    def __init__(self, dataset):
+-        super(Net, self).__init__()
+-        self.conv1 = GCNConv(dataset.num_node_features, dataset.num_node_features)
+-        # self.conv2 = GCNConv(dataset.num_node_features, dataset.num_classes)
+-
+-
+-    def forward(self, data):
+-        x, edge_index = data.x, data.edge_index
+-        for _ in range(2):
+-            x = self.conv1(x, edge_index)
+-       # x = F.relu(x)
+-        #x = F.dropout(x, training=self.training)
+-       # x = self.conv2(x, edge_index)
+-
+-        return F.log_softmax(x, dim=1)
+-
+-
+-def plot_dataset(dataset):
+-    edges_raw = dataset.data.edge_index.numpy()
+-    edges = [(x, y) for x, y in zip(edges_raw[0, :], edges_raw[1, :])]
+-    labels = dataset.data.y.numpy()
+-
+-    G = nx.Graph()
+-    G.add_nodes_from(list(range(np.max(edges_raw))))
+-    G.add_edges_from(edges)
+-    plt.subplot(111)
+-    options = {
+-        'node_size': 30,
+-        'width': 0.2,
+-    }
+-    nx.draw(G, with_labels=False, node_color=labels.tolist(), cmap=plt.cm.tab10, font_weight='bold', **options)
+-    plt.show()
+-
+-
+-def test(data, train=True):
+-    model.eval()
+-
+-    correct = 0
+-    pred = model(data).max(dim=1)[1]
+-
+-
+-    if train:
+-        correct += pred[data.train_mask].eq(data.y[data.train_mask]).sum().item()
+-        return correct / (len(data.y[data.train_mask]))
+-    else:
+-        correct += pred[data.test_mask].eq(data.y[data.test_mask]).sum().item()
+-        return correct / (len(data.y[data.test_mask]))
+-
+-
+-def train(data, plot=False):
+-    train_accuracies, test_accuracies = list(), list()
+-    for epoch in tqdm(range(100), disable=True):
+-        model.train()
+-        optimizer.zero_grad()
+-        out = model(data)
+-        loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
+-        loss.backward()
+-        optimizer.step()
+-
+-        train_acc = test(data)
+-        test_acc = test(data, train=False)
+-
+-        train_accuracies.append(train_acc)
+-        test_accuracies.append(test_acc)
+-
+-        print('Epoch: {:03d}, Loss: {:.5f}, Train Acc: {:.5f}, Test Acc: {:.5f}'.
+-               format(epoch, loss, train_acc, test_acc))
+-
+-
+-    if plot:
+-        plt.plot(train_accuracies, label="Train accuracy")
+-        plt.plot(test_accuracies, label="Validation accuracy")
+-        plt.xlabel("# Epoch")
+-        plt.ylabel("Accuracy")
+-        plt.legend(loc='upper right')
+-        plt.show()
+-
+-
+-if __name__ == "__main__":
+-    dataset = Planetoid(root='/tmp/Cora', name='Cora')
+-    # plot_dataset(dataset)
+-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+-    model = Net(dataset).to(device)
+-    data = dataset[0].to(device)
+-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=5e-4)
+-
+-    print("--- Starting Training ---")
+-    train(data, plot=True)
+-    #print(len(model.state_dict()))
+diff --git a/nets/netsforreal.py b/nets/netsforreal.py
+deleted file mode 100644
+index 85e24e8..0000000
+--- a/nets/netsforreal.py
++++ /dev/null
+@@ -1,104 +0,0 @@
+-import torch
+-import torch.nn.functional as F
+-import torch.nn as nn
+-from torch_geometric.nn import MessagePassing
+-from torch_geometric.utils import add_self_loops
+-
+-NODE_FEATURES = 10
+-OUTPUT_FEATURES = 4
+-
+-
+-class CustomNet(nn.Module):
+-    def __init__(self, edge_index, *args, **kwargs):
+-        super(CustomNet, self).__init__()
+-        self.edge_index = torch.tensor(edge_index)
+-        self.value_net = ValueNet()
+-        self.policy_net = PolicyNet(edge_index)
+-        self.latent_dim_pi = 20
+-        self.latent_dim_vf = 1#20
+-       # self.forward_actor = self.policy_net
+-
+-    def forward(self, x, use_sde=False):
+-        x_p = self.policy_net(x)
+-        # print("x_v requested from netsforreal")
+-        x_v = self.value_net(x_p)
+-        return x_p, x_v
+-
+-
+-class PolicyNet(nn.Module):
+-    def __init__(self, edge_index, *args, **kwargs):
+-        super(PolicyNet, self).__init__()
+-        self.edge_index = torch.tensor(edge_index)
+-
+-        self.conv1 = GCNConv(NODE_FEATURES, 16, self.edge_index)
+-        self.conv2 = GCNConv(16, OUTPUT_FEATURES, self.edge_index)
+-       # self.flatten = torch.flatten()
+-
+-    def forward(self, x, use_sde=False):
+-       # print(x.size(-1))
+-       #  if x.size(-1) == 20:
+-       #      return x
+-        #+
+-        # try:
+-        #     if x.size() <= torch.Size([50]):
+-
+-        #
+-        #     else:
+-        #         x = torch.reshape(x, (64, 5, 10))
+-        # except Exception as _:
+-        #     print(x)
+-        #     raise _
+-
+-        # if x.size() != torch.Size([2, 20]):
+-        if x.size() == torch.Size((50,)):
+-            x = torch.reshape(x, (5, 10))
+-            x = self.conv1(x)
+-            x = F.relu(x)
+-            x = self.conv2(x)
+-            x = x.flatten()
+-            return x
+-        y = torch.empty((20,))
+-        for x_ in x:
+-            x_ = torch.reshape(x_, (5, 10))
+-
+-            x_ = self.conv1(x_)
+-            x_ = F.relu(x_)
+-            x_ = self.conv2(x_)
+-            x_ = x_.flatten()
+-
+-            y = torch.vstack((y, x_))
+-
+-        #print(y)
+-        x = torch.Tensor(y[1:])#, dtype=torch.float32)
+-    # elif x.size() == torch.Size([2, 20]):
+-    #     return x
+-
+-        return x
+-
+-
+-class ValueNet(nn.Module):
+-    def __init__(self, *args, **kwargs):
+-        super(ValueNet, self).__init__()
+-
+-        self.linear = nn.Linear(OUTPUT_FEATURES * 5, 1)
+-
+-    def forward(self, x, use_sde=False):
+-        x = self.linear(x)
+-        return x
+-
+-
+-class GCNConv(MessagePassing):
+-    def __init__(self, in_channels, out_channels, edge_index, *args, **kwargs):
+-        super(GCNConv, self).__init__(aggr='add')  # "Add" aggregation
+-        self.lin = torch.nn.Linear(in_channels, out_channels)
+-        self.edge_index = edge_index
+-
+-    def forward(self, x, use_sde=False):
+-        # Step 1: Add self-loops
+-        #        edge_index, _ = add_self_loops(edge_index, num_nodes=5) #x.size(0)) 5 Bahnhöfe
+-
+-        # Step 2: Multiply with weights
+-        x = self.lin(x)
+-
+-        # Step 4: Propagate the embeddings to the next layer
+-        return self.propagate(self.edge_index, size=(x.size(0), x.size(0)), x=x)
+diff --git a/nets/netsforreal2.py b/nets/netsforreal2.py
+deleted file mode 100644
+index 7b0a99f..0000000
+--- a/nets/netsforreal2.py
++++ /dev/null
+@@ -1,126 +0,0 @@
+-import collections
+-
+-from stable_baselines3.common.policies import BaseModel
+-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+-import gym
+-import torch as th
+-import torch.nn as nn
+-from stable_baselines3.common.distributions import (
+-    BernoulliDistribution,
+-    CategoricalDistribution,
+-    DiagGaussianDistribution,
+-    Distribution,
+-    MultiCategoricalDistribution,
+-    StateDependentNoiseDistribution,
+-    make_proba_distribution,
+-)
+-from stable_baselines3.common.preprocessing import get_action_dim, is_image_space, maybe_transpose, preprocess_obs
+-from stable_baselines3.common.torch_layers import (
+-    BaseFeaturesExtractor,
+-    CombinedExtractor,
+-    FlattenExtractor,
+-    MlpExtractor,
+-    NatureCNN,
+-    create_mlp,
+-)
+-from stable_baselines3.common.type_aliases import Schedule
+-from stable_baselines3.common.utils import get_device, is_vectorized_observation, obs_as_tensor
+-
+-
+-class CustomActorCriticPolicy(BaseModel):
+-    def __init__(
+-            self,
+-            observation_space: gym.spaces.Space,
+-            action_space: gym.spaces.Space,
+-            lr_schedule: Schedule,
+-            net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
+-            activation_fn: Type[nn.Module] = nn.Tanh,
+-            ortho_init: bool = True,
+-            use_sde: bool = False,
+-            log_std_init: float = 0.0,
+-            full_std: bool = True,
+-            sde_net_arch: Optional[List[int]] = None,
+-            use_expln: bool = False,
+-            squash_output: bool = False,
+-            features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+-            features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+-            normalize_images: bool = True,
+-            optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+-            optimizer_kwargs: Optional[Dict[str, Any]] = None,
+-    ):
+-        optimizer_class = th.optim.Adam
+-        optimizer_kwargs["eps"] = 1e-5
+-        super(CustomActorCriticPolicy, self).__init__(
+-            observation_space,
+-            action_space,
+-            features_extractor_class,
+-            features_extractor_kwargs,
+-            optimizer_class=optimizer_class,
+-            optimizer_kwargs=optimizer_kwargs
+-        )
+-
+-        #self.net_arch = net_arch
+-        self.log_std_init = log_std_init
+-        self.extractor = FeatureExtractor
+-
+-    def _get_constructor_parameters(self) -> Dict[str, Any]:
+-        data = super()._get_constructor_parameters()
+-
+-        default_none_kwargs = self.dist_kwargs or collections.defaultdict(lambda: None)
+-
+-        data.update(
+-            dict(
+-                net_arch=self.net_arch,
+-                activation_fn=self.activation_fn,
+-                use_sde=self.use_sde,
+-                log_std_init=self.log_std_init,
+-                squash_output=default_none_kwargs["squash_output"],
+-                full_std=default_none_kwargs["full_std"],
+-                use_expln=default_none_kwargs["use_expln"],
+-                lr_schedule=self._dummy_schedule,  # dummy lr schedule, not needed for loading policy alone
+-                ortho_init=self.ortho_init,
+-                optimizer_class=self.optimizer_class,
+-                optimizer_kwargs=self.optimizer_kwargs,
+-                features_extractor_class=self.features_extractor_class,
+-                features_extractor_kwargs=self.features_extractor_kwargs,
+-            )
+-        )
+-        return data
+-
+-    def forward(self, obs: th.Tensor, deterministic: bool = False):
+-        """
+-        Forward pass in all the networks (actor and critic)
+-
+-        :param obs: Observation
+-        :param deterministic: Whether to sample or use deterministic actions
+-        :return: action, value and log probability of the action
+-        """
+-        # Preprocess the observation if needed
+-        features = self.extract_features(obs)
+-        latent = self.extractor(features)#self.mlp_extractor(features)
+-        # Evaluate the values for the given observations
+-        values = self.value_net(latent)
+-        actions = self.action_net(latent)
+-       # distribution = self._get_action_dist_from_latent(latent_pi)
+-        #actions = distribution.get_actions(deterministic=deterministic)
+-        #log_prob = distribution.log_prob(actions)
+-        return actions, values#, log_prob
+-
+-
+-class FeatureExtractor(nn.modules):
+-    def __init__(self, *args, **kwargs):
+-        super(FeatureExtractor, self).__init__()
+-
+-        self.linear = nn.Linear(1 * 5, 1)
+-
+-    def forward(self, x, use_sde=False):
+-        x = self.linear(x)
+-        return x
+-
+-class ValueNet(nn.modules):
+-    def __init__(self):
+-        pass
+-
+-class ActionNet(nn.modules):
+-    def __init__(self):
+-        pass
+\ No newline at end of file
+diff --git a/objects.py b/objects.py
+index 7aa8e42..1f4a1ac 100644
+--- a/objects.py
++++ b/objects.py
+@@ -10,7 +10,7 @@ class Station:
+         self.passengers = []
+         self.reachable_stops = []
+         self.vector = None
+-        self.input_vector = np.ones(NODE_FEATURES) # * 0.9 + np.random.rand(NODE_FEATURES) * 0.2  # Values from 0.9 to 1.1
++        self.input_vector = np.ones(NODE_FEATURES) * 0.95 + np.random.rand(NODE_FEATURES) * 0.1  # Values from 0.95 to 1.05
+ 
+     def getencoding(self):
+         return self.input_vector
+diff --git a/policies/dqn_policy.py b/policies/dqn_policy.py
+new file mode 100644
+index 0000000..30e73a0
+--- /dev/null
++++ b/policies/dqn_policy.py
+@@ -0,0 +1 @@
++raise NotImplementedError
+diff --git a/nets/netsgat.py b/policies/ppo_policy.py
+similarity index 68%
+rename from nets/netsgat.py
+rename to policies/ppo_policy.py
+index d407ee4..2de7729 100644
+--- a/nets/netsgat.py
++++ b/policies/ppo_policy.py
+@@ -1,7 +1,8 @@
+ import torch
+ import torch.nn as nn
++from stable_baselines3 import PPO
+ from stable_baselines3.common.distributions import make_proba_distribution
+-from torch_geometric.nn import SAGEConv
++from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv
+ from torch.nn import Linear, LazyBatchNorm1d
+ import torch.nn.functional as F
+ from stable_baselines3.common.policies import ActorCriticPolicy
+@@ -10,93 +11,54 @@ from torch_geometric.data import Data, HeteroData
+ from torch_geometric.loader import DataLoader
+ from torch_geometric.utils import to_dense_batch
+ 
+-
+-NODE_FEATURES = 5
++NODE_FEATURES = 4
++HIDDEN_NEURONS = 4
+ OUTPUT_FEATURES = 2
+-HIDDEN_NEURONS = 8
+-
+-ITERATIONS_BEFORE_DESTINATION = 1
+-ITERATIONS_AFTER_DESTINATION = 2
+-
+-
+-class Extractor(nn.Module):
+-    def __init__(self):
+-        super(Extractor, self).__init__()
+-        self.features_dim = HIDDEN_NEURONS
+-        self.latent_dim_pi = HIDDEN_NEURONS
+-        self.latent_dim_vf = HIDDEN_NEURONS
+-
+-        self.conv1 = SAGEConv(NODE_FEATURES, HIDDEN_NEURONS, normalize=True, bias=False)
+-        self.bn1 = LazyBatchNorm1d()
+-        self.conv2 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=False)
+-        self.bn2 = LazyBatchNorm1d()
+-        self.conv3 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=False)
+-        self.bn3 = LazyBatchNorm1d()
+-        self.conv4 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=False)
+-        self.bn4 = LazyBatchNorm1d()
+ 
+-    def forward(self, x, edge_index_connections, edge_index_destinations):
+-        x = self.conv1(x, edge_index_connections)
+-        x = F.relu(x)
+-        x = self.bn1(x)
+-        for _ in range(ITERATIONS_BEFORE_DESTINATION):
+-            x = self.conv4(x, edge_index_connections)
+-            x = F.relu(x)
+-            x = self.bn2(x)
++ITERATIONS_BEFORE_DESTINATION = 20
++ITERATIONS_AFTER_DESTINATION = 20
+ 
+-        x = self.conv2(x, edge_index_destinations)
+-        x = F.relu(x)
+-        x = self.bn3(x)
+ 
+-        for _ in range(ITERATIONS_AFTER_DESTINATION):
+-            x = self.conv3(x, edge_index_connections)
+-            x = F.relu(x)
+-            x = self.bn4(x)
++def get_model(env, vf_coef, verbose, learning_rate, batch_size, n_steps, clip_range):
++    pol = CustomActorCriticPolicy
++    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
++    model = PPO(
++        pol,
++        env,
++        vf_coef=vf_coef,
++        verbose=verbose,
++        learning_rate=learning_rate,
++        batch_size=batch_size,
++        n_steps=n_steps,
++        clip_range=clip_range,
++        device=device,
++        # gamma=GAMMA
++        # _init_setup_model=False
++    )
+ 
+-        return x
+-
+-
+-class PolicyNet(nn.Module):
+-    def __init__(self):
+-        super(PolicyNet, self).__init__()
+-        self.lin1 = Linear(HIDDEN_NEURONS, OUTPUT_FEATURES)
+-
+-    def forward(self, x, edge_index_connections, edge_index_destinations):
+-        x = self.lin1(x)
+-        x = torch.flatten(x, start_dim=1)
+-
+-        return x
+-
+-
+-class ValueNet(nn.Module):
+-    def __init__(self):
+-        super(ValueNet, self).__init__()
+-        # self.lin1 = Linear(HIDDEN_NEURONS, HIDDEN_NEURONS // 4)
+-        # self.bn = LazyBatchNorm1d()
+-        self.lin2 = Linear(HIDDEN_NEURONS, 1, bias=False)# // 4, 1)
+-
+-    def forward(self, x, edge_index_connections, edge_index_destinations):
+-        # x = self.lin1(x)
+-        # x = F.relu(x)
+-        # x = self.bn(x)
+-        x = torch.sum(x, 1, keepdim=False)  # davor war hier ein mean lul
+-        x = self.lin2(x)
+-
+-        return x
++    return model
+ 
+ 
+ class CustomActorCriticPolicy(ActorCriticPolicy):
+-    def __init__(self, observation_space, action_space, lr_schedule, log_std_init=0, use_sde=False, **kwargs):
++    def __init__(self, observation_space, action_space, lr_schedule, log_std_init=0, use_sde=False, use_bn=False,
++                 iterations_before_destination=1, iterations_after_destination=2, **kwargs):
++        self.iterations_before_destination = iterations_before_destination
++        self.iterations_after_destination = iterations_after_destination
++
++        self.use_bn = use_bn
+         super(CustomActorCriticPolicy, self).__init__(observation_space, action_space, lr_schedule, **kwargs)
+ 
+-        self.features_extractor = Extractor()
+         self.features_dim = self.features_extractor.features_dim
+         self.log_std_init = log_std_init
+         self.action_dist = make_proba_distribution(action_space)
+         self._build(lr_schedule)
+ 
+     def _build(self, lr_schedule):
+-        self.mlp_extractor = Extractor()
++        # self.mlp_extractor = Extractor()
++        self.mlp_extractor = Extractor(use_bn=self.use_bn,
++                                       iterations_before_destination=self.iterations_before_destination,
++                                       iterations_after_destination=self.iterations_after_destination)
++        self.mlp_extractor = self.mlp_extractor
+         self.value_net = ValueNet()
+         self.policy_net = PolicyNet()
+         latent_dim_pi = self.mlp_extractor.latent_dim_pi
+@@ -104,7 +66,8 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
+                                                                                 log_std_init=self.log_std_init)
+         self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
+ 
+-    def forward(self, obs: torch.Tensor, deterministic: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
++    def forward(self, obs: torch.Tensor, deterministic: bool = False, use_sde=False)\
++            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+         data = self._convert_observation(obs)
+         latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
+         latent, _ = to_dense_batch(latent, data.batch)
+@@ -119,10 +82,13 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
+ 
+         return actions, values, log_probs
+ 
+-    def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
++    def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor) \
++            -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+         data = self._convert_observation(obs)
+         latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
++
+         latent, _ = to_dense_batch(latent, data.batch)
++
+         values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations)
+ 
+         mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
+@@ -132,7 +98,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
+ 
+         return values, log_prob, distribution.entropy()
+ 
+-    def _convert_observation(self, obs):# torch.Batch):
++    def _convert_observation(self, obs):  # torch.Batch):
+         n_batches = obs.shape[0]
+         datas = []
+         for i in range(n_batches):
+@@ -162,6 +128,75 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
+         return next(iter(data_loader))
+ 
+ 
++class Extractor(nn.Module):
++    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2):
++        super(Extractor, self).__init__()
++        self.iterations_before_destination = iterations_before_destination
++        self.iterations_after_destination = iterations_after_destination
++        self.use_bn = use_bn
++        self.features_dim = HIDDEN_NEURONS
++        self.latent_dim_pi = HIDDEN_NEURONS
++        self.latent_dim_vf = HIDDEN_NEURONS
++
++        self.conv1 = SAGEConv(NODE_FEATURES, HIDDEN_NEURONS, normalize=True, bias=not self.use_bn)
++        if self.use_bn: self.bn1 = LazyBatchNorm1d()
++        self.conv2 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=not self.use_bn)
++        if self.use_bn: self.bn2 = LazyBatchNorm1d()
++        self.conv3 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=not self.use_bn)
++        if self.use_bn: self.bn3 = LazyBatchNorm1d()
++        self.conv4 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS, normalize=True, bias=not self.use_bn)
++        if self.use_bn: self.bn4 = LazyBatchNorm1d()
++
++    def forward(self, x, edge_index_connections, edge_index_destinations, use_sde=False):
++        x = self.conv1(x, edge_index_connections)
++        x = F.relu(x)
++        if self.use_bn: x = self.bn1(x)
++        for _ in range(self.iterations_before_destination):
++            x = self.conv4(x, edge_index_connections)
++            x = F.relu(x)
++            if self.use_bn: x = self.bn2(x)
++
++        x = self.conv2(x, edge_index_destinations)
++        x = F.relu(x)
++        if self.use_bn:  x = self.bn3(x)
++
++        for _ in range(self.iterations_after_destination):
++            x = self.conv3(x, edge_index_connections)
++            x = F.relu(x)
++            if self.use_bn: x = self.bn4(x)
++
++        return x
++
++
++class PolicyNet(nn.Module):
++    def __init__(self):
++        super(PolicyNet, self).__init__()
++        self.lin1 = Linear(HIDDEN_NEURONS, OUTPUT_FEATURES)
++
++    def forward(self, x, edge_index_connections, edge_index_destinations):
++        x = self.lin1(x)
++        x = torch.flatten(x, start_dim=1)
++
++        return x
++
++
++class ValueNet(nn.Module):
++    def __init__(self):
++        super(ValueNet, self).__init__()
++        # self.conv1 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS)#, concat=False)
++        self.lin2 = Linear(HIDDEN_NEURONS, 1)
++
++    def forward(self, x, edge_index_connections, edge_index_destinations):
++        # x = self.conv1(x, edge_index=edge_index_connections)
++        # x = F.relu(x)
++        x = torch.mean(x, 1, keepdim=False)  # davor war hier ein mean lul
++        x = self.lin2(x)
++
++        return x
++
++
++
++
+ class CustomData(Data):
+     def __init__(self, x=None, edge_index_connections=None, edge_index_destinations=None, edge_attr=None, **kwargs):
+         super().__init__(x=x, edge_attr=edge_attr, **kwargs)
+diff --git a/policy.py b/policy.py
+deleted file mode 100644
+index bdaa665..0000000
+--- a/policy.py
++++ /dev/null
+@@ -1,140 +0,0 @@
+-from stable_baselines3.common.policies import ActorCriticPolicy
+-from stable_baselines3.common.type_aliases import Schedule
+-from stable_baselines3.common.distributions import make_proba_distribution
+-import torch.nn as nn
+-import torch as th
+-import nets.netsgat as netsforreal
+-
+-from stable_baselines3.common.distributions import DiagGaussianDistribution, CategoricalDistribution, StateDependentNoiseDistribution
+-import gym
+-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+-
+-from stable_baselines3.common.torch_layers import FlattenExtractor
+-from stable_baselines3.common.distributions import (
+-    BernoulliDistribution,
+-    CategoricalDistribution,
+-    DiagGaussianDistribution,
+-    Distribution,
+-    MultiCategoricalDistribution,
+-    StateDependentNoiseDistribution,
+-    make_proba_distribution,
+-)
+-
+-# class Policy(policies.ActorCriticPolicy):
+-#     def __init__(self, observation_space=IDK, action_space=IDK):
+-#         super(Policy, self).__init__(observation_space, action_space)
+-#         self.net = nets.Net()
+-#
+-#     def forward(self, x):
+-#         x = self.net(x)
+-#
+-#         return x
+-
+-
+-class CustomActorCriticPolicy(ActorCriticPolicy):
+-    def __init__(
+-            self,
+-            observation_space: gym.spaces.Space,
+-            action_space: gym.spaces.Space,
+-            lr_schedule,
+-            net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
+-            activation_fn: Type[nn.Module] = nn.Tanh,
+-            *args,
+-            **kwargs,
+-    ):
+-
+-        super(CustomActorCriticPolicy, self).__init__(
+-            observation_space,
+-            action_space,
+-            lr_schedule,
+-            net_arch,
+-            activation_fn,
+-            # Pass remaining arguments to base class
+-            *args,
+-            **kwargs,
+-        )
+-        edge_index = [[], []]
+-        for s1 in range(5):
+-            for s2 in range(5):
+-                if s1 != s2:
+-                    edge_index[0].append(s1)
+-                    edge_index[1].append(s2)
+-      # edge_index = [range(5), range(5)]
+-        self.net = netsforreal.CustomNet(edge_index)
+-        # self.value_net = self.mlp_extractor.value_net
+-        # self.action_net = self.mlp_extractor.policy_net
+-
+-        # Disable orthogonal initialization
+-        self.ortho_init = True
+-        #self.value_net = netsforreal.ValueNet(edge_index)
+-        #self.action_net = netsforreal.PolicyNet(edge_index)
+-        # self.log_std = 5
+-        # self.log_std = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
+-        # self.log_std2 = th.nn.Parameter(th.tensor([0.5]), requires_grad=True)
+-        # self.optimizer = th.optim.Adam(self.parameters())
+-
+-    # def _build_mlp_extractor(self) -> None:
+-    #     self.mlp_extractor = self.net
+-
+-    # def _build(self, lr_schedule) -> None:
+-    #     edge_index = [[], []]
+-    #     for s1 in range(5):
+-    #         for s2 in range(5):
+-    #             edge_index[0].append(s1)
+-    #             edge_index[1].append(s2)
+-    #
+-    #     self.mlp_extractor = netsforreal.CustomNet(edge_index)
+-
+-    def forward(self, x):
+-      #  x = self.extract_features(x)
+-      #  print(x)
+-        # Evaluate the values for the given observations
+-        actions, values = self.net(x)
+-        distribution = self._get_action_dist_from_latent(actions)
+-        log_prob = distribution.log_prob(actions)
+-
+-        return actions, values, log_prob
+-
+-    def _get_action_dist_from_latent(self, actions):
+-        """
+-        Retrieve action distribution given the latent codes.
+-
+-        :param latent_pi: Latent code for the actor
+-        :return: Action distribution
+-        """
+-#        mean_actions, _ =  self.net(actions)
+-
+-        if True:#True:#isinstance(self.action_dist, DiagGaussianDistribution):
+-            return self.action_dist.proba_distribution(actions, self.log_std)
+-        elif False:#isinstance(self.action_dist, CategoricalDistribution):
+-            # Here mean_actions are the logits before the softmax
+-            return self.action_dist.proba_distribution(mean_actions=actions, log_std=self.log_std)#action_logits=actions)#mean_actions)
+-        elif False:#isinstance(self.action_dist, MultiCategoricalDistribution):
+-            # Here mean_actions are the flattened logits
+-            return self.action_dist.proba_distribution(mean_actions=actions, log_std=self.log_std)#action_logits=actions)
+-        elif False:#isinstance(self.action_dist, StateDependentNoiseDistribution):
+-            return self.action_dist.proba_distribution(actions, self.log_std, x)
+-
+-    def evaluate_actions(self, obs: th.Tensor, actions: th.Tensor) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
+-        """
+-        Evaluate actions according to the current policy,
+-        given the observations.
+-
+-        :param obs:
+-        :param actions:
+-        :return: estimated value, log likelihood of taking those actions
+-            and entropy of the action distribution.
+-        """
+-        # Preprocess the observation if needed
+-        features = obs#self.extract_features(obs)
+-        latent_pi, latent_vf = self.net(features)
+-        distribution = self._get_action_dist_from_latent(latent_pi)
+-        log_prob = distribution.log_prob(actions)
+-        values = latent_vf# self.value_net(latent_vf)
+-        return values, log_prob, distribution.entropy()
+-
+-    def predict(self, obs, state=None, mask=None, deterministic=False):
+-        obs = th.as_tensor(obs)
+-        actions, _ = self.net(obs)
+-        return actions
+-
+diff --git a/train.py b/train.py
+deleted file mode 100644
+index c87d41f..0000000
+--- a/train.py
++++ /dev/null
+@@ -1,65 +0,0 @@
+-from stable_baselines3 import PPO
+-from stable_baselines3.common.env_util import make_vec_env
+-from envforreal2 import AbfahrtEnv
+-from gym.spaces.box import Box
+-import numpy as np
+-from tqdm import tqdm
+-import nets.netsgat as net
+-import torch
+-
+-
+-def learningrate(_):
+-    return 10 ** -3
+-
+-
+-# def eval_model(model):
+-#     # print("\n === STARTING EVALUATION === \n ===============================")
+-#     obs = env.reset()
+-#     n_steps = 20
+-#     for step in tqdm(range(n_steps), disable=True):
+-#         # print(obs)
+-#         action = model.predict(torch.Tensor(obs), )  # , deterministic=True)
+-#
+-#         # action = action.flatten()
+-#         obs, reward, done, info = env.step(action)
+-#         # print('obs=', obs, 'reward=', reward, 'done=', done)
+-#         #        env.render(mode='console')
+-#         if done:
+-#             # Note that the VecEnv resets automatically
+-#             # when a done signal is encountered
+-#
+-#             # print("Goal reached!", "reward=", reward)
+-#             break
+-#     return step + 1
+-
+-
+-BATCH_SIZE = 20
+-N_STEPS = 200
+-TOTAL_STEPS = BATCH_SIZE * N_STEPS * 1
+-n_episodes = 1
+-N_ENVS = 1
+-
+-VERBOSE = 1
+-
+-
+-if __name__ == "__main__":
+-    observation_space = Box(0, 1, shape=(5, 10), dtype=np.float32)
+-    action_space = Box(-1, +1, shape=(20,), dtype=np.float32)
+-
+-    env = AbfahrtEnv(observation_space, action_space)
+-    env.reset()
+-    #check_env(env)
+-    multi_env = make_vec_env(lambda: env, n_envs=N_ENVS)
+-
+-    model = PPO(
+-        net.CustomActorCriticPolicy,
+-        multi_env,
+-        vf_coef=0.05,
+-        verbose=VERBOSE,
+-        learning_rate=learningrate,
+-        batch_size=BATCH_SIZE,
+-        n_steps=N_STEPS
+-    )
+-
+-    model.learn(TOTAL_STEPS)
+-    model.save("./finaltest")
+diff --git a/train_sweep.py b/train_sweep.py
+index 940b45b..0829234 100644
+--- a/train_sweep.py
++++ b/train_sweep.py
+@@ -4,11 +4,11 @@ from abc import ABC
+ from stable_baselines3 import PPO, A2C
+ from stable_baselines3.common.env_util import make_vec_env
+ 
+-from envforreal2 import AbfahrtEnv
++from enviroments.env import AbfahrtEnv
+ from gym.spaces.box import Box
+ from gym.spaces.space import Space
+ import numpy as np
+-import nets.netsgat as net
++import policies.ppo_policy as net
+ import wandb
+ from stable_baselines3.common.callbacks import BaseCallback
+ from stable_baselines3.common import base_class
+@@ -16,6 +16,8 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
+ import torch
+ from stable_baselines3.common.env_checker import check_env
+ 
++from policies import ppo_policy
++
+ 
+ class WandBCallback(BaseCallback):
+     def __init__(self, check_freq, eval_freq=1, eval_env=None):
+@@ -24,10 +26,10 @@ class WandBCallback(BaseCallback):
+         # self.best_mean_reward = -np.inf
+         # self.eval_freq = 2048
+         self.eval_env = eval_env
+-        self.n_eval_episodes = 16
++        self.n_eval_episodes = 1
+         self.eval_freq = N_STEPS
+ 
+-    def init_callback(self, model: "base_class.BaseAlgorithm") -> None:
++    def init_callback(self, model):
+         self.model = model
+ 
+     def _on_step(self) -> bool:
+@@ -36,49 +38,58 @@ class WandBCallback(BaseCallback):
+             # Reset success rate buffer
+             self._is_success_buffer = []
+             episode_rewards, episode_lengths, hundred_percent, dings = self._evaluate_policy()
++            print(f"reached goal: {dings} %")
++            print(f"{self.n_calls}: {episode_lengths}")
+             if USE_WANDB:
+                 wandb.log({"episode_lenghts": episode_lengths})
+                 wandb.log({"succesfull_episodes %": dings})
+-            else:
+-                print(f"{self.n_calls}: {episode_lengths}")
++
++
+ 
+         return not hundred_percent
+ 
+     def _evaluate_policy(self):
+-        # TODO parallel enviroments
+-        #  TODO batches
+-        # self.eval_env = DummyVecEnv([lambda: self.eval_env])
+-
++        t0 = time.perf_counter()
++        n_envs = 16
+         episode_rewards = []
+         episode_lengths = []
+-        t0 = time.perf_counter()
+-        for _ in range(self.n_eval_episodes):
+-            observation = self.eval_env.reset(mode="eval")
+-            current_reward = 0
+-            steps_taken = 0
+-            for i in range(100):
+-                observation = torch.tensor([observation]).float()
+-
+-                action, _, _ = self.model.policy.forward(observation, deterministic=True)
+ 
+-                action = action.detach().numpy()[0]
+-                observation, reward, done, info = self.eval_env.step(action)
+-                current_reward += reward
+-
+-                if done: break
+-                steps_taken += 1
+-
+-            episode_rewards.append(current_reward)
+-            episode_lengths.append(steps_taken)
++        episode_counts = np.zeros(n_envs, dtype="int")
++        # Divides episodes among different sub environments in the vector as evenly as possible
++        episode_count_targets = np.array([(self.n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
++
++        current_rewards = np.zeros(n_envs)
++        current_lengths = np.zeros(n_envs, dtype="int")
++        observations = self.eval_env.reset()
++        episode_starts = np.ones((self.eval_env.num_envs,), dtype=bool)
++        for _ in range(100):
++            observations = torch.tensor(observations)
++            actions, _, _ = self.model.policy.forward(observations, deterministic=True)
++            actions = actions.detach().numpy()
++            observations, rewards, dones, infos = self.eval_env.step(actions)
++            current_rewards += rewards
++            current_lengths += 1
++            for i in range(n_envs):
++                if episode_counts[i] < episode_count_targets[i]:
++                    reward = rewards[i]
++                    done = dones[i]
++                    episode_starts[i] = done
++
++                    if dones[i]:
++                        episode_rewards.append(current_rewards[i])
++                        episode_lengths.append(current_lengths[i])
++                        episode_counts[i] += 1
++                        current_rewards[i] = 0
++                        current_lengths[i] = 0
++        for done in dones:
++            if not done: episode_lengths.append(100)
++        mean_reward = np.mean(episode_rewards)
++        std_reward = np.std(episode_rewards)
++        hundred_percent = max(current_lengths) != 100
+         time_taken = time.perf_counter() - t0
+         print(f"======== EVALUATION ========= it took: {time_taken}")
+         dings = np.count_nonzero(np.asarray(episode_lengths) < 100)/self.n_eval_episodes*100
+-        print(f"reached goal: {dings} %")
+-    #    if dings == 100: print(action)
+-        # print(episode_lengths)
+-        mean_reward = np.mean(episode_rewards)
+-        mean_length = np.mean(episode_lengths)
+-        return mean_reward, mean_length, False, dings#(np.count_nonzero(np.asarray(episode_lengths) < 200)) == 16, dings
++        return episode_rewards, np.mean(episode_lengths), hundred_percent, dings
+ 
+ 
+ def train():
+@@ -87,35 +98,21 @@ def train():
+         LEARNING_RATE = config.learning_rate
+         CLIP_RANGE = config.clip_range
+ 
+-        observation_space = Box(-100, +100, shape=(3203,), dtype=np.float32)
+-        action_space = Box(-100, +100, shape=(400,), dtype=np.float32)
+-
+         env = AbfahrtEnv(observation_space, action_space)
+         env.reset()
+         # check_env(env)
+         multi_env = make_vec_env(lambda: env, n_envs=N_ENVS)
+ 
+-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+-        model = PPO(
+-            net.CustomActorCriticPolicy,
+-            multi_env,
+-            vf_coef=VF_COEF,
+-            verbose=VERBOSE,
+-            learning_rate=LEARNING_RATE,
+-            batch_size=BATCH_SIZE,
+-            n_steps=N_STEPS,
+-            clip_range=CLIP_RANGE,
+-            device=device,
+-            # gamma=GAMMA
+-            # _init_setup_model=False
+-        )
+-        eval_callback = WandBCallback(1, 1, env)
++        model = ppo_policy.get_model(multi_env, vf_coef=VF_COEF, verbose=VERBOSE, learning_rate=LEARNING_RATE,
++                                     batch_size=BATCH_SIZE, n_steps=N_STEPS, clip_range=CLIP_RANGE)
++        eval_envs = make_vec_env(lambda: env, n_envs=16)
++        eval_callback = WandBCallback(1, 1, eval_envs)
+ 
+         model.learn(TOTAL_STEPS, callback=eval_callback)
+ 
+ 
+ VERBOSE = 1
+-USE_WANDB = 1
++USE_WANDB = 0
+ 
+ CLIP_RANGE = 0.2
+ VF_COEF = 0.5
+@@ -127,9 +124,12 @@ N_ENVS = 16
+ LEARNING_RATE = 10 ** -4
+ GAMMA = 0.99
+ 
++observation_space = Box(-100, +100, shape=(3203,), dtype=np.float32)
++action_space = Box(-100, +100, shape=(400,), dtype=np.float32)
++
+ if __name__ == "__main__":
+     if USE_WANDB:
+-        #wandb.init(project="schmalegger-hbf", entity="schmalegg")
++        # wandb.init(project="schmalegger-hbf", entity="schmalegg")
+         sweep_id = "schmalegg/schmalegger-hbf/cz7uo6vd"
+         wandb.agent(sweep_id, function=train, count=10)
+     else:
+diff --git a/utils.py b/utils.py
+index a6c49e8..0706a2b 100644
+--- a/utils.py
++++ b/utils.py
+@@ -1,2 +1,14 @@
+-def generate_evaluation_envs():
+-    pass
+\ No newline at end of file
++import networkx as nx
++
++
++def create_nx_graph(station1s, station2s):
++    graph = list(zip(station1s, station2s))
++
++    nx_graph = nx.Graph()
++    for station in set(station1s):
++        nx_graph.add_node(station)
++    for source, target in graph:
++        nx_graph.add_edge(source, target)
++
++    graph_nx = nx.draw(nx_graph, with_labels=True)
++    return graph_nx
+diff --git a/utils/lkasdjfk.py b/utils/lkasdjfk.py
+deleted file mode 100644
+index 04cc107..0000000
+--- a/utils/lkasdjfk.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-from stable_baselines3 import PPO, A2C, DQN, SAC  # DQN coming soon
+-from stable_baselines3.common.env_util import make_vec_env
+-from env import AbfahrtEnv
+-import policy
+-from gym.spaces.box import Box
+-import numpy as np
+-from stable_baselines3.common.env_checker import check_env
+-import torch as th
+-
+-
+-print(th.tensor(1) == 1)
+\ No newline at end of file

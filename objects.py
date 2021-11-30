@@ -10,7 +10,7 @@ class Station:
         self.passengers = []
         self.reachable_stops = []
         self.vector = None
-        self.input_vector = np.ones(NODE_FEATURES) # * 0.9 + np.random.rand(NODE_FEATURES) * 0.2  # Values from 0.9 to 1.1
+        self.input_vector = np.ones(NODE_FEATURES) * 0.95 + np.random.rand(NODE_FEATURES) * 0.1  # Values from 0.95 to 1.05
 
     def getencoding(self):
         return self.input_vector

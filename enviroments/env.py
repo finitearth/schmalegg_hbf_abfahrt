@@ -1,22 +1,12 @@
-import math
 import gym
 import torch
-from gym import spaces, logger
-from gym.utils import seeding
 import numpy as np
-import random
-from gym.spaces import box
-from torch_geometric.data import Data, HeteroData
+from enviroments import generate_envs
 
-import generate_envs
-import objects
-import random
-
-OUTPUT_VECTOR_SIZE = 2
 
 
 class AbfahrtEnv(gym.Env):
-    def __init__(self, observation_space, action_space):
+    def __init__(self, observation_space, action_space, action_vector_size=2):
         super(AbfahrtEnv, self).__init__()
         self.stations = []
         self.trains = []
@@ -24,16 +14,17 @@ class AbfahrtEnv(gym.Env):
         self.action_space = action_space
         self.score = 0
         self.routes = np.zeros((100, 100))
-        # self.keys = "str"
         self.k = 0
+        self.action_vector_size = action_vector_size
 
     def step(self, action):
+        # print(action)
         self.k += 1
         info = {}
-        action = action[:OUTPUT_VECTOR_SIZE * len(self.stations)]
+        action = action[:self.action_vector_size * len(self.stations)]
 
         for i, station in enumerate(self.stations):
-            station.vector = action[i * OUTPUT_VECTOR_SIZE:(i + 1) * OUTPUT_VECTOR_SIZE]
+            station.vector = action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
 
         for train in self.trains:
             # check if reached destination; if not: skip
@@ -54,7 +45,7 @@ class AbfahrtEnv(gym.Env):
             if len(train.passengers) > 0:
                 train_vector = np.sum([p.destination.vector for p in train.passengers], axis=0)
             else:
-                train_vector = np.asarray([1] * OUTPUT_VECTOR_SIZE)
+                train_vector = np.asarray([1] * self.action_vector_size)
 
             next_stop_idx = np.argmax([train_vector.T @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])
@@ -68,7 +59,7 @@ class AbfahrtEnv(gym.Env):
         done = bool((np.sum([len(s.passengers) for s in self.stations]) + np.sum(
             [len(t.passengers) for t in self.trains])) == 0)
 
-        # if done: reward = +5.0
+        if done: reward = +5.0
         observation = self.get_observation()
         return observation, reward, done, info
 
@@ -79,7 +70,7 @@ class AbfahrtEnv(gym.Env):
             self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()#
         elif mode == "eval":
             # Generate evaluation enviroment
-            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()
         return self.get_observation()
 
     def render(self, mode="human"):

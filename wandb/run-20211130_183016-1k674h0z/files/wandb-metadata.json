@@ -1,0 +1,22 @@
+{
+    "os": "Windows-10-10.0.19041-SP0",
+    "python": "3.8.8",
+    "heartbeatAt": "2021-11-30T17:30:21.590460",
+    "startedAt": "2021-11-30T17:30:16.865775",
+    "docker": null,
+    "cpu_count": 8,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "C:/Users/tzehl/OneDrive/Dokumente/GitHub/schmalegg_hbf_abfahrt/train_sweep.py",
+    "codePath": "train_sweep.py",
+    "git": {
+        "remote": "https://github.com/finitearth/schmalegg_hbf_abfahrt.git",
+        "commit": "4aeddd0eae06816d84a76729de5816981a94a7e5"
+    },
+    "email": "t.zehle@gmail.com",
+    "root": "C:/Users/tzehl/OneDrive/Dokumente/GitHub/schmalegg_hbf_abfahrt",
+    "host": "TZe",
+    "username": "tzehl",
+    "executable": "C:\\Users\\tzehl\\AppData\\Local\\Programs\\Python\\Python38\\python.exe"
+}
