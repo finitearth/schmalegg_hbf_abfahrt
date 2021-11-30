@@ -59,7 +59,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         self.mlp_extractor = Extractor(use_bn=self.use_bn,
                                        iterations_before_destination=self.iterations_before_destination,
                                        iterations_after_destination=self.iterations_after_destination,
-                                       hidden_neurons=self.hidden_neurons)
+                                       hidden_neurons=self.hidden_neurons, n_node_features=self.n_node_features)
         self.mlp_extractor = self.mlp_extractor
         self.value_net = ValueNet()
         self.policy_net = PolicyNet()
@@ -131,7 +131,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
 
 
 class Extractor(nn.Module):
-    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2, hidden_neurons=8):
+    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2, hidden_neurons=8, n_node_features=4):
         super(Extractor, self).__init__()
         self.iterations_before_destination = iterations_before_destination
         self.iterations_after_destination = iterations_after_destination
