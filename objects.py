@@ -1,16 +1,14 @@
 import numpy as np
 
-NODE_FEATURES = 4
-
 
 class Station:
-    def __init__(self, capacity, name=-1):
+    def __init__(self, capacity, name=-1, n_node_features=4):
         self.name = name
         self.capacity = capacity
         self.passengers = []
         self.reachable_stops = []
         self.vector = None
-        self.input_vector = np.ones(NODE_FEATURES) * 0.95 + np.random.rand(NODE_FEATURES) * 0.1  # Values from 0.95 to 1.05
+        self.input_vector = np.ones(n_node_features) * 0.95 + np.random.rand(n_node_features) * 0.1  # Values from 0.95 to 1.05
 
     def getencoding(self):
         return self.input_vector

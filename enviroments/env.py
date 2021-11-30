@@ -6,7 +6,7 @@ from enviroments import generate_envs
 
 
 class AbfahrtEnv(gym.Env):
-    def __init__(self, observation_space, action_space, action_vector_size=2):
+    def __init__(self, observation_space, action_space, action_vector_size=2, n_node_features=4):
         super(AbfahrtEnv, self).__init__()
         self.stations = []
         self.trains = []
@@ -16,6 +16,7 @@ class AbfahrtEnv(gym.Env):
         self.routes = np.zeros((100, 100))
         self.k = 0
         self.action_vector_size = action_vector_size
+        self.n_node_features = n_node_features
 
     def step(self, action):
         # print(action)
@@ -67,10 +68,10 @@ class AbfahrtEnv(gym.Env):
         self.score = np.sum([len(s.passengers) for s in self.stations])
         if mode == "train":
             # Generate random enviroment for training
-            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()#
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env(self.n_node_features)#generate_envs.generate_example_enviroment()#
         elif mode == "eval":
             # Generate evaluation enviroment
-            self.routes, self.stations, self.trains = generate_envs.generate_random_env()#generate_envs.generate_example_enviroment()
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env(self.n_node_features)#generate_envs.generate_example_enviroment()
         return self.get_observation()
 
     def render(self, mode="human"):

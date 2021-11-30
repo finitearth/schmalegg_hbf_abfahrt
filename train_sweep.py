@@ -103,7 +103,7 @@ def train():
             ITERATIONS_AFTER_DESTINATION = config.it_aft_dest
             USE_BN = config.use_bn
 
-            env = AbfahrtEnv(observation_space, action_space, action_vector_size=ACTION_VECTOR_SIZE)
+            env = AbfahrtEnv(observation_space, action_space, action_vector_size=ACTION_VECTOR_SIZE, n_node_features=N_NODE_FEATURES)
             env.reset()
 
             multi_env = make_vec_env(lambda: env, n_envs=N_ENVS)

@@ -3,7 +3,7 @@ import objects
 from itertools import product
 
 
-def generate_random_routes(max_capacity=10, max_n_stations=20):
+def generate_random_routes(max_capacity=10, max_n_stations=20, n_node_features=4):
     def _is_reachable(station1_, station2_, i_max, visited=None, i=0):
         if visited is None:
             visited = []
@@ -22,7 +22,7 @@ def generate_random_routes(max_capacity=10, max_n_stations=20):
 
     routes = objects.Routes()
 
-    stations = [objects.Station(random.random() * max_capacity, name=i) for i in range(n_stations)]
+    stations = [objects.Station(random.random() * max_capacity, name=i, n_node_features=n_node_features) for i in range(n_stations)]
 
     middle_index = len(stations) // 2
     # create random connections
@@ -43,8 +43,8 @@ def generate_evaluation_env():
     raise NotImplementedError
 
 
-def generate_random_env(n_passenger_group_max=5, n_trains_max=5):
-    routes, stations = generate_random_routes()
+def generate_random_env(n_passenger_group_max=5, n_trains_max=5, n_node_features=4):
+    routes, stations = generate_random_routes(n_node_features)
     n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
 
     for _ in range(n_passenger_group):
