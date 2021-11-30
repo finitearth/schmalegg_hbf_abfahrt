@@ -58,7 +58,8 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     def _build(self, lr_schedule):
         self.mlp_extractor = Extractor(use_bn=self.use_bn,
                                        iterations_before_destination=self.iterations_before_destination,
-                                       iterations_after_destination=self.iterations_after_destination)
+                                       iterations_after_destination=self.iterations_after_destination,
+                                       hidden_neurons=self.hidden_neurons)
         self.mlp_extractor = self.mlp_extractor
         self.value_net = ValueNet()
         self.policy_net = PolicyNet()
@@ -130,14 +131,16 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
 
 
 class Extractor(nn.Module):
-    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2):
+    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2, hidden_neurons=8):
         super(Extractor, self).__init__()
         self.iterations_before_destination = iterations_before_destination
         self.iterations_after_destination = iterations_after_destination
         self.use_bn = use_bn
+        self.hidden_neurons = hidden_neurons
         self.features_dim = self.hidden_neurons
         self.latent_dim_pi = self.hidden_neurons
         self.latent_dim_vf = self.hidden_neurons
+
 
         self.conv1 = SAGEConv(self.n_node_features, self.hidden_neurons, normalize=True, bias=not self.use_bn)
         if self.use_bn: self.bn1 = LazyBatchNorm1d()
