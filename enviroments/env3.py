@@ -5,6 +5,13 @@ import numpy as np
 from gym.spaces import Box
 from enviroments import generate_envs
 
+"""
+Veränderungen:
+    - Dotproducts müssen größer als 1 sein um einzusteigen
+
+Erwartung:
+    - Könnte besser werden, weil wählerischer
+"""
 
 class AbfahrtEnv(gym.Env):
     def __init__(self, config):
@@ -27,7 +34,6 @@ class AbfahrtEnv(gym.Env):
         for train in self.trains:
             # check if reached destination; if not: skip
             if not train.reached_next_stop(): continue
-
             # deboard and onboard passengers
             for p in train.passengers: train.deboard(p)
 
@@ -35,15 +41,14 @@ class AbfahrtEnv(gym.Env):
                 dot_products = np.asarray(
                     [train.station.vector @ p.destination.vector for p in train.station.passengers])
                 idx = np.argmax(dot_products)
-                if dot_products[idx] > 0:
+                if dot_products[idx] > 1:
                     train.onboard(train.station.passengers[idx])
                 else: break
 
             # route to the next stop
             if len(train.passengers) > 0:
                 train_vector = np.sum([p.destination.vector for p in train.passengers], axis=0)
-            else:
-                train_vector = np.asarray([1] * self.action_vector_size)
+            else: train_vector = np.asarray([1] * self.action_vector_size)
 
             next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])

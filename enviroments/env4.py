@@ -4,6 +4,13 @@ import torch
 import numpy as np
 from gym.spaces import Box
 from enviroments import generate_envs
+"""
+Änderung:
+    - Wenn kein Passagier im Zug, Zug_vektor=station_vektor, statt Zugvektor = (1, 1, 1, 1)
+    
+Erwartung:
+    - bestimmt nicht so groß oda?
+"""
 
 
 class AbfahrtEnv(gym.Env):
@@ -42,8 +49,7 @@ class AbfahrtEnv(gym.Env):
             # route to the next stop
             if len(train.passengers) > 0:
                 train_vector = np.sum([p.destination.vector for p in train.passengers], axis=0)
-            else:
-                train_vector = np.asarray([1] * self.action_vector_size)
+            else: train_vector = train.station.vector
 
             next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])

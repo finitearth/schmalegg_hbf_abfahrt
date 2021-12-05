@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.distributions import make_proba_distribution
-from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv
+from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv, global_mean_pool
 from torch.nn import Linear, LazyBatchNorm1d
 import torch.nn.functional as F
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -12,42 +12,36 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.utils import to_dense_batch
 
 
-def get_model(env, vf_coef, verbose, learning_rate, batch_size, n_steps, clip_range, gamma, n_node_features,
-              hidden_neurons, output_features, it_b4_dest, it_aft_dest, use_bn):
-    pol = CustomActorCriticPolicy
+def get_model(multi_env, config, batch_size, n_steps):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    pol = CustomActorCriticPolicy
     model = PPO(
         pol,
-        env,
-        vf_coef=vf_coef,
-        verbose=verbose,
-        learning_rate=learning_rate,
+        multi_env,
+        vf_coef=config.vf_coef,
+        learning_rate=config.learning_rate,
         batch_size=batch_size,
         n_steps=n_steps,
-        clip_range=clip_range,
+        clip_range=config.clip_range,
         device=device,
-        gamma=gamma,
-        policy_kwargs={"n_node_features": n_node_features,
-                       "hidden_neurons": hidden_neurons,
-                       "output_features": output_features,
-                       "it_b4_dest": it_b4_dest,
-                       "it_aft_dest": it_aft_dest,
-                       "use_bn": use_bn}
-        # _init_setup_model=False
+        gamma=config.gamma,
+        verbose=1,
+        policy_kwargs={"config": config}
     )
 
     return model
 
 
 class CustomActorCriticPolicy(ActorCriticPolicy):
-    def __init__(self, observation_space, action_space, lr_schedule, log_std_init=0, use_sde=False, n_node_features=4,
-                 hidden_neurons=4, output_features=2, it_b4_dest=20, it_aft_dest=20, use_bn=False, **kwargs):
-        self.iterations_before_destination = it_b4_dest
-        self.iterations_after_destination = it_aft_dest
-        self.hidden_neurons = hidden_neurons
-        self.output_features = output_features
-        self.n_node_features = n_node_features
-        self.use_bn = use_bn
+    def __init__(self, observation_space, action_space, lr_schedule, config=None, log_std_init=0, use_sde=False, **kwargs):
+        self.config = config
+        self.iterations_before_destination = config.it_b4_dest
+        self.iterations_after_destination = config.it_aft_dest
+        self.hidden_neurons = config.hidden_neurons
+        self.output_features = config.action_vector_size
+        self.n_node_features = config.n_node_features
+        self.use_bn = config.use_bn
+        self.normalize = config.normalize
         super(CustomActorCriticPolicy, self).__init__(observation_space, action_space, lr_schedule, **kwargs)
 
         self.features_dim = self.features_extractor.features_dim
@@ -56,13 +50,10 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         self._build(lr_schedule)
 
     def _build(self, lr_schedule):
-        self.mlp_extractor = Extractor(use_bn=self.use_bn,
-                                       iterations_before_destination=self.iterations_before_destination,
-                                       iterations_after_destination=self.iterations_after_destination,
-                                       hidden_neurons=self.hidden_neurons, n_node_features=self.n_node_features)
-        self.mlp_extractor = self.mlp_extractor
-        self.value_net = ValueNet()
-        self.policy_net = PolicyNet()
+        self.mlp_extractor = Extractor(self.config)
+
+        self.value_net = ValueNet(self.hidden_neurons)
+        self.policy_net = PolicyNet(self.hidden_neurons, self.output_features)
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
         self.action_net, self.log_std = self.action_dist.proba_distribution_net(latent_dim=latent_dim_pi,
                                                                                 log_std_init=self.log_std_init)
@@ -72,11 +63,11 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         data = self._convert_observation(obs)
         latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
+
+        values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations, data.batch)
         latent, _ = to_dense_batch(latent, data.batch)
-
-        values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations)
-
         mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
+        mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack((mean_actions, torch.zeros(mean_actions.shape[0], 400 - mean_actions.size()[1]))).to(self.device)
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
@@ -88,19 +79,17 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         data = self._convert_observation(obs)
         latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
-
+        values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations, data.batch)
         latent, _ = to_dense_batch(latent, data.batch)
-
-        values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations)
-
         mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
+        mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack((mean_actions, torch.zeros(mean_actions.shape[0], 400 - mean_actions.size()[1]))).to(self.device)
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         log_prob = distribution.log_prob(actions)
 
         return values, log_prob, distribution.entropy()
 
-    def _convert_observation(self, obs):  # torch.Batch):
+    def _convert_observation(self, obs):
         n_batches = obs.shape[0]
         datas = []
         for i in range(n_batches):
@@ -131,74 +120,68 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
 
 
 class Extractor(nn.Module):
-    def __init__(self, use_bn=True, iterations_before_destination=3, iterations_after_destination=2, hidden_neurons=8, n_node_features=4):
+    def __init__(self, config):
         super(Extractor, self).__init__()
-        self.iterations_before_destination = iterations_before_destination
-        self.iterations_after_destination = iterations_after_destination
-        self.use_bn = use_bn
-        self.hidden_neurons = hidden_neurons
+        self.hidden_neurons = config.hidden_neurons
         self.features_dim = self.hidden_neurons
         self.latent_dim_pi = self.hidden_neurons
         self.latent_dim_vf = self.hidden_neurons
 
+        self.conv1 = SAGEConv(config.n_node_features, config.hidden_neurons, normalize=config.normalize, bias=not config.use_bn)
+        if config.use_bn: self.bn1 = LazyBatchNorm1d()
+        self.conv2 = SAGEConv(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize, bias=not config.use_bn, aggr="add")
+        if config.use_bn: self.bn2 = LazyBatchNorm1d()
+        self.conv3 = SAGEConv(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize, bias=not config.use_bn)
+        if config.use_bn: self.bn3 = LazyBatchNorm1d()
+        self.conv4 = SAGEConv(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize, bias=not config.use_bn)
+        if config.use_bn: self.bn4 = LazyBatchNorm1d()
 
-        self.conv1 = SAGEConv(self.n_node_features, self.hidden_neurons, normalize=True, bias=not self.use_bn)
-        if self.use_bn: self.bn1 = LazyBatchNorm1d()
-        self.conv2 = SAGEConv(self.hidden_neurons, self.hidden_neurons, normalize=True, bias=not self.use_bn)
-        if self.use_bn: self.bn2 = LazyBatchNorm1d()
-        self.conv3 = SAGEConv(self.hidden_neurons, self.hidden_neurons, normalize=True, bias=not self.use_bn)
-        if self.use_bn: self.bn3 = LazyBatchNorm1d()
-        self.conv4 = SAGEConv(self.hidden_neurons, self.hidden_neurons, normalize=True, bias=not self.use_bn)
-        if self.use_bn: self.bn4 = LazyBatchNorm1d()
+        self.activation = config.activation
+
+        self.config = config
 
     def forward(self, x, edge_index_connections, edge_index_destinations, use_sde=False):
         x = self.conv1(x, edge_index_connections)
-        x = F.relu(x)
-        if self.use_bn: x = self.bn1(x)
-        for _ in range(self.iterations_before_destination):
+        x = self.activation(x)
+        if self.config.use_bn: x = self.bn1(x)
+        for _ in range(self.config.it_b4_dest):
             x = self.conv4(x, edge_index_connections)
-            x = F.relu(x)
-            if self.use_bn: x = self.bn2(x)
+            x = self.activation(x)
+            if self.config.use_bn: x = self.bn2(x)
 
         x = self.conv2(x, edge_index_destinations)
-        x = F.relu(x)
-        if self.use_bn:  x = self.bn3(x)
+        x = self.activation(x)
+        if self.config.use_bn:  x = self.bn3(x)
 
-        for _ in range(self.iterations_after_destination):
+        for _ in range(self.config.it_aft_dest):
             x = self.conv3(x, edge_index_connections)
-            x = F.relu(x)
-            if self.use_bn: x = self.bn4(x)
+            x = self.activation(x)
+            if self.config.use_bn: x = self.bn4(x)
 
         return x
 
 
 class PolicyNet(nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_neurons, output_features):
         super(PolicyNet, self).__init__()
-        self.lin1 = Linear(self.hidden_neurons, self.output_features)
+        self.lin1 = Linear(hidden_neurons, output_features)
 
     def forward(self, x, edge_index_connections, edge_index_destinations):
         x = self.lin1(x)
-        x = torch.flatten(x, start_dim=1)
 
         return x
 
 
 class ValueNet(nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_neurons):
         super(ValueNet, self).__init__()
-        # self.conv1 = SAGEConv(HIDDEN_NEURONS, HIDDEN_NEURONS)#, concat=False)
-        self.lin2 = Linear(self.hidden_neurons, 1)
+        self.lin1 = Linear(hidden_neurons, 1)
 
-    def forward(self, x, edge_index_connections, edge_index_destinations):
-        # x = self.conv1(x, edge_index=edge_index_connections)
-        # x = F.relu(x)
-        x = torch.mean(x, 1, keepdim=False)  # davor war hier ein mean lul
-        x = self.lin2(x)
+    def forward(self, x, edge_index_connections, edge_index_destinations, batch):
+        x = global_mean_pool(x, batch)
+        x = self.lin1(x)
 
         return x
-
-
 
 
 class CustomData(Data):
@@ -206,8 +189,3 @@ class CustomData(Data):
         super().__init__(x=x, edge_attr=edge_attr, **kwargs)
         self.edge_index_destinations = edge_index_destinations
         self.edge_index_connections = edge_index_connections
-
-#
-# class CustomObservationBuffer(BaseBuffer):
-#     def __init__(self, buffer_size, observation_space, action_space):
-#         super().__init__(buffer_size, observation_space, action_space)

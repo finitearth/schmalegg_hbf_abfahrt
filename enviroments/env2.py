@@ -4,7 +4,13 @@ import torch
 import numpy as np
 from gym.spaces import Box
 from enviroments import generate_envs
-
+"""
+Veränderungen:
+ - switched destination and current station in output
+ 
+Erwartung:
+ - sollte es eig schlechter machen lul, nur zum these testen
+"""
 
 class AbfahrtEnv(gym.Env):
     def __init__(self, config):
@@ -15,14 +21,16 @@ class AbfahrtEnv(gym.Env):
         self.action_space = Box(-100, +100, shape=(400,), dtype=np.float32)
         self.score = 0
         self.routes = np.zeros((100, 100))
+        self.k = 0
         self.action_vector_size = config.action_vector_size
         self.n_node_features = config.n_node_features
 
     def step(self, action):
+        self.k += 1
         action = action[:self.action_vector_size * len(self.stations)]
 
         for i, station in enumerate(self.stations):
-            station.vector = action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
+            station.vector = action[i * self.action_vector_size: (i + 1) * self.action_vector_size]
 
         for train in self.trains:
             # check if reached destination; if not: skip
@@ -37,7 +45,8 @@ class AbfahrtEnv(gym.Env):
                 idx = np.argmax(dot_products)
                 if dot_products[idx] > 0:
                     train.onboard(train.station.passengers[idx])
-                else: break
+                else:
+                    break
 
             # route to the next stop
             if len(train.passengers) > 0:
@@ -53,8 +62,7 @@ class AbfahrtEnv(gym.Env):
         reward = (self.score - score) * 5 - 1
         self.score = score
 
-        done = bool((np.sum([len(s.passengers) for s in self.stations]) + np.sum(
-            [len(t.passengers) for t in self.trains])) == 0)
+        done = bool(self.score == 0)
 
         if done: reward = +5.0
         observation = self.get_observation()
@@ -64,10 +72,12 @@ class AbfahrtEnv(gym.Env):
         self.score = np.sum([len(s.passengers) for s in self.stations])
         if mode == "train":
             # Generate random enviroment for training
-            self.routes, self.stations, self.trains = generate_envs.generate_random_env(self.n_node_features)#generate_envs.generate_example_enviroment()#
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env(
+                self.n_node_features)  # generate_envs.generate_example_enviroment()#
         elif mode == "eval":
             # Generate evaluation enviroment
-            self.routes, self.stations, self.trains = generate_envs.generate_random_env(self.n_node_features)#generate_envs.generate_example_enviroment()#
+            self.routes, self.stations, self.trains = generate_envs.generate_random_env(
+                self.n_node_features)  # generate_envs.generate_example_enviroment()#
         return self.get_observation()
 
     def render(self, mode="human"):
@@ -107,8 +117,8 @@ class AbfahrtEnv(gym.Env):
         return np.hstack((
             edge_index_connections0,
             edge_index_connections1,
-            edge_index_destination1,  # ###weil die information von zielbahnhof zu aktuellem bahnhof fließen muss
-            edge_index_destination0,  #
+            edge_index_destination0,
+            edge_index_destination1,
             input_vectors,
             n_passenger,
             n_edge_connections,
