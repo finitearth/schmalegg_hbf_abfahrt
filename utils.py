@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 from enviroments import env, env2, env3, env4
-from policies import ppo_policy, ppo_policy2
+from policies import ppo_policy, ppo_policy2, ppo_policy_mit_sd
 
 
 def create_nx_graph(station1s, station2s):
@@ -33,13 +33,14 @@ class ConfigParams:
         self.it_aft_dest =             wandb_config.it_aft_dest if w        else 19
         self.use_bn =                  wandb_config.use_bn if w             else True
         self.normalize =               wandb_config.normalize if w          else True
+        self.log_std_init =            wandb_config.log_std_init if w       else -3.0
 
         env_str =                      wandb_config.env if w                else "env3"
         envs = {"env": env, "env2": env2, "env3": env3, "env4": env4}
         self.env = envs[env_str]
 
-        policy_str =                   wandb_config.policy if w             else "ppo_policy"
-        policies = {"ppo_policy": ppo_policy, "ppo_policy2": ppo_policy2}
+        policy_str =                   wandb_config.policy if w             else "ppo_policy_with_sde"
+        policies = {"ppo_policy": ppo_policy, "ppo_policy2": ppo_policy2, "ppo_policy_with_sde": ppo_policy_mit_sd}
         self.policy = policies[policy_str]
 
         activation_str =               wandb_config.activation if w         else "tanh"
