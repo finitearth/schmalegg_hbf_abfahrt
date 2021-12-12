@@ -3,14 +3,15 @@ from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 import time
 import numpy as np
 import torch
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
-def get_callbacks(logger=None, envs=None, n_steps=None, use_wandb=False):
+def get_callbacks(logger=None, envs=None, n_steps=None, use_wandb=False, stations=None, routes=None, trains=None):
     eval_callback = EvalCallBack(n_steps, envs, use_wandb)
-
     training_callback = WandBTrainingCallBack(n_steps, logger, use_wandb)
-
-    return CallbackList([eval_callback, training_callback])
+    render_callback = RenderCallback(n_steps, stations, routes, trains)
+    return CallbackList([eval_callback, training_callback, render_callback])
 
 
 class WandBTrainingCallBack(BaseCallback):
@@ -68,7 +69,7 @@ def _evaluate_policy(model, eval_env, n_eval_episodes, device):
 
             action, _, _ = model.policy.forward(observation, deterministic=False)
 
-            action = action.detach().numpy()
+            action = action.cpu().detach().numpy()
             observation, reward, done, info = eval_env.step(action)
             current_reward += reward
 
@@ -89,3 +90,38 @@ def _evaluate_policy(model, eval_env, n_eval_episodes, device):
     print(f"best_length: {best_length}")
 
     return mean_reward, mean_length, perc_successfull
+
+class RenderCallback(BaseCallback):
+    def __init__(self, eval_freq, stations, routes, trains):
+        super(RenderCallback, self).__init__(verbose=1)
+        self.eval_freq = eval_freq
+        self.stations = stations
+        self.routes = routes
+        self.trains = trains
+
+    def _on_step(self):
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            self.render(self.stations, self.routes, self.trains)
+        return True
+
+    def render(self, stations, routes, trains):
+        graph = list(zip(routes[0], routes[1]))
+        color_map = []
+        nx_graph = nx.Graph()
+        for node in graph[0]:
+            zoom = 0.6
+            nx_graph.add_node(node, zoom=zoom)
+
+        for source, target in graph:
+            nx_graph.add_edge(source, target, weight=6)
+
+        for node_station in nx_graph:
+            for train_node in trains:
+                #print("Station: " + str(node_station), " Train: " + str(train_node))
+                if str(node_station) == str(train_node.station):
+                    color_map.append('red')
+                else:
+                    color_map.append('blue')
+            
+        nx.draw(nx_graph, node_color=color_map,  with_labels=True)
+        return plt.show()
