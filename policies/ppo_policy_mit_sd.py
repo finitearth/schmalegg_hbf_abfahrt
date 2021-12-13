@@ -200,3 +200,5 @@ class CustomData(Data):
         super().__init__(x=x, edge_attr=edge_attr, **kwargs)
         self.edge_index_destinations = edge_index_destinations
         self.edge_index_connections = edge_index_connections
+
+    # def __inc__(self):

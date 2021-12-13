@@ -22,7 +22,7 @@ class Station:
         return self.name
 
     def __repr__(self):
-        return f"Station {int(self)}"
+        return f"{int(self)}"
 
 
 class Routes:

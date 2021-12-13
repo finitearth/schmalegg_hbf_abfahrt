@@ -3,7 +3,32 @@ import objects
 from itertools import product
 
 
-def generate_random_routes(max_capacity=10, max_n_stations=20, n_node_features=4):
+def generate_random_env(n_passenger_group_max=5, n_trains_max=5, n_node_features=4, max_capacity=10, max_n_stations=20):
+    routes, stations = generate_random_routes(max_capacity, max_n_stations, n_node_features)
+    n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
+
+    for _ in range(n_passenger_group):
+        destination = random.choice(stations)
+        target_time = random.randint(3, 30)
+        n_passenger = random.randint(1, 10)
+        passenger_group = objects.PassengerGroup(destination, n_passenger, target_time)
+        station = destination
+        while destination == station:
+            station = random.choice(stations)
+        station.passengers.append(passenger_group)
+
+    trains = []
+    n_trains = max(1, int(n_trains_max * random.random()))
+    for _ in range(n_trains):  # TODO wildcard trains
+        station = random.choice(stations)
+        capacity = 100  # random.randint(1, 10)
+        train = objects.Train(station, capacity)
+        trains.append(train)
+
+    return routes, stations, trains
+
+
+def generate_random_routes(max_capacity, max_n_stations, n_node_features):
     def _is_reachable(station1_, station2_, i_max, visited=None, i=0):
         if visited is None:
             visited = []
@@ -17,12 +42,14 @@ def generate_random_routes(max_capacity=10, max_n_stations=20, n_node_features=4
             if _is_reachable(station, station2_, i_max, visited=visited, i=i + 1):
                 return True
         return False
+
     n_stations = random.randint(3, max_n_stations)
     edge_proneness = random.random() / n_stations ** 2
 
     routes = objects.Routes()
 
-    stations = [objects.Station(random.random() * max_capacity, name=i, n_node_features=n_node_features) for i in range(n_stations)]
+    stations = [objects.Station(random.random() * max_capacity, name=i, n_node_features=n_node_features)
+                for i in range(n_stations)]
 
     middle_index = len(stations) // 2
     # create random connections
@@ -41,31 +68,6 @@ def generate_random_routes(max_capacity=10, max_n_stations=20, n_node_features=4
 
 def generate_evaluation_env():
     raise NotImplementedError
-
-
-def generate_random_env(n_passenger_group_max=5, n_trains_max=5, n_node_features=4):
-    routes, stations = generate_random_routes(n_node_features)
-    n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
-
-    for _ in range(n_passenger_group):
-        destination = random.choice(stations)
-        target_time = random.randint(3, 30)
-        n_passenger = random.randint(1, 10)
-        passenger_group = objects.PassengerGroup(destination, n_passenger, target_time)
-        station = destination
-        while destination == station:
-            station = random.choice(stations)
-        station.passengers.append(passenger_group)
-
-    trains = []
-    n_trains = max(1, int(n_trains_max * random.random()))
-    for _ in range(n_trains):  # TODO wildcard trains
-        station = random.choice(stations)
-        capacity = 100# random.randint(1, 10)
-        train = objects.Train(station, capacity)
-        trains.append(train)
-
-    return routes, stations, trains
 
 
 def generate_example_enviroment():

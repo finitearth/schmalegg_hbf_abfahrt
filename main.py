@@ -1,11 +1,9 @@
-import generate_envs
-import VisualizationGraphs
+from enviroments.generate_envs import generate_random_env
+from utils import create_nx_graph
 
 import matplotlib.pyplot as plt
-import time
 
 if __name__ == '__main__':
-    for _ in range(1):
-        routes = generate_envs.generate_random_routes()[0]
-    VisualizationGraphs.create_nx_graph(routes[0], routes[1])
+    routes, _, _ = generate_random_env(max_n_stations=30)
+    create_nx_graph(routes[0], routes[1])
     plt.show()

@@ -13,10 +13,11 @@ class AbfahrtEnv(gym.Env):
         self.trains = []
         self.observation_space = Box(-100, +100, shape=(3203,), dtype=np.float32)
         self.action_space = Box(-100, +100, shape=(400,), dtype=np.float32)
-        self.score = 0
         self.routes = np.zeros((100, 100))
         self.action_vector_size = config.action_vector_size
         self.n_node_features = config.n_node_features
+        self.config = config
+        self.active_passengers = 0
 
     def step(self, action):
         action = action[:self.action_vector_size * len(self.stations)]
@@ -48,20 +49,18 @@ class AbfahrtEnv(gym.Env):
             next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
-        score = np.sum([len(s.passengers) for s in self.stations])
-        score += np.sum([len(t.passengers) for t in self.trains])
-        reward = (self.score - score) * 5 - 1
-        self.score = score
+        active_passengers = np.sum([len(s.passengers) for s in self.stations+self.trains])
+        reward = (self.active_passengers - active_passengers) * self.config.reward_reached_dest + self.config.reward_per_step
+        self.active_passengers = active_passengers
 
         done = bool((np.sum([len(s.passengers) for s in self.stations]) + np.sum(
             [len(t.passengers) for t in self.trains])) == 0)
 
-        if done: reward = +5.0
         observation = self.get_observation()
         return observation, reward, done, {}
 
     def reset(self, mode="train"):
-        self.score = np.sum([len(s.passengers) for s in self.stations])
+        self.active_passengers = np.sum([len(s.passengers) for s in self.stations])
         if mode == "train":
             # Generate random enviroment for training
             self.routes, self.stations, self.trains = generate_envs.generate_random_env(self.n_node_features)#generate_envs.generate_example_enviroment()#

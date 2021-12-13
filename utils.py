@@ -1,5 +1,9 @@
+import io
+from PIL import Image, ImageDraw
 import networkx as nx
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 from torch import nn
 
 from enviroments import env, env2, env3, env4
@@ -34,8 +38,10 @@ class ConfigParams:
         self.use_bn =                  wandb_config.use_bn if w             else True
         self.normalize =               wandb_config.normalize if w          else True
         self.log_std_init =            wandb_config.log_std_init if w       else -3.0
+        self.reward_per_step = wandb_config.reward_per_step if w else 3.0
+        self.reward_reached_dest = wandb_config.reward_reached_dest if w else -3.0
 
-        env_str =                      wandb_config.env if w                else "env3"
+        env_str =                      wandb_config.env if w                else "env"
         envs = {"env": env, "env2": env2, "env3": env3, "env4": env4}
         self.env = envs[env_str]
 
@@ -43,9 +49,22 @@ class ConfigParams:
         policies = {"ppo_policy": ppo_policy, "ppo_policy2": ppo_policy2, "ppo_policy_with_sde": ppo_policy_mit_sd}
         self.policy = policies[policy_str]
 
-        activation_str =               wandb_config.activation if w         else "tanh"
-        activations = {"tanh": torch.tanh, "relu": torch.relu, "None": nn.Identity()}
+        activation_str =               wandb_config.activation if w         else "softplus"
+        activations = {"tanh": torch.tanh, "relu": torch.relu, "softplus": nn.Softplus(), "None": nn.Identity()}
         self.activation = activations[activation_str]
 
 
+def plot_to_image(step):
+    """Converts the matplotlib plot specified by 'figure' to a PNG image and
+    returns it. The supplied figure is closed and inaccessible after this call."""
+    img_buf = io.BytesIO()
+    plt.savefig(img_buf, format='png')
 
+    im = Image.open(img_buf)
+
+    d = ImageDraw.Draw(im)
+    d.text((28, 36), f"Step {step}", fill=(255, 0, 0))
+
+    im = np.array(im)
+
+    return im
