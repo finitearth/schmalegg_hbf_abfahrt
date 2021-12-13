@@ -38,8 +38,8 @@ class ConfigParams:
         self.use_bn =                  wandb_config.use_bn if w             else True
         self.normalize =               wandb_config.normalize if w          else True
         self.log_std_init =            wandb_config.log_std_init if w       else -3.0
-        self.reward_per_step = wandb_config.reward_per_step if w else 3.0
-        self.reward_reached_dest = wandb_config.reward_reached_dest if w else -3.0
+        self.reward_per_step = wandb_config.reward_per_step if w            else -1.0
+        self.reward_reached_dest = wandb_config.reward_reached_dest if w    else 2.0
 
         env_str =                      wandb_config.env if w                else "env"
         envs = {"env": env, "env2": env2, "env3": env3, "env4": env4}
