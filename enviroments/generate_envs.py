@@ -1,6 +1,31 @@
 import random
+
+import networkx as nx
+from networkx import fast_gnp_random_graph, write_adjlist
+
 import objects
 from itertools import product
+
+
+def generate_train_envs(batch_size):
+    for i in range(batch_size):
+        n_max_stations = 100
+        n_stations = max(7, int(n_max_stations*random.random()))
+        p = 2 / (n_stations+1)
+        graph = fast_gnp_random_graph(n_stations, p)
+        c = nx.k_edge_augmentation(graph, 1)
+        graph.add_edges_from(c)
+
+        write_adjlist(graph, f"../graphs/train/train_{i}.txt")
+
+
+def generate_random_env2(n_passenger_group_max=5, n_trains_max=5, n_node_features=4, max_capacity=10, max_n_stations=20):
+    n_max_stations = 100
+    n_stations = max(7, int(n_max_stations * random.random()))
+    p = 2 / (n_stations + 1)
+    graph = fast_gnp_random_graph(n_stations, p)
+    c = nx.k_edge_augmentation(graph, 1)
+    graph.add_edges_from(c)
 
 
 def generate_random_env(n_passenger_group_max=5, n_trains_max=5, n_node_features=4, max_capacity=10, max_n_stations=20):
