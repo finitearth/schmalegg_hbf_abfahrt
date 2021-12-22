@@ -1,5 +1,4 @@
 import io
-import os
 
 import cv2
 from PIL import ImageDraw, Image
@@ -19,8 +18,8 @@ plt.switch_backend('agg')
 
 def get_callbacks(envs=None, use_wandb=False, config=None):
     callback_factor = 10
-    eval_callback = EvalCallback(envs, eval_freq=config.n_steps, n_eval_episodes=23)
-    render_callback = RenderCallback(config.n_steps, envs, use_wandb, config=config)
+    eval_callback = EvalCallback(envs, eval_freq=config.n_steps*callback_factor, n_eval_episodes=23)
+    render_callback = RenderCallback(config.n_steps*callback_factor, envs, use_wandb, config=config)
 
     return CustomCallBacklist([eval_callback, render_callback])
 

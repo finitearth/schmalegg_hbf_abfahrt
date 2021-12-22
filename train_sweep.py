@@ -1,8 +1,6 @@
 from stable_baselines3.common.env_util import make_vec_env
-
 import callbacks
 import utils
-# from enviroments.env import AbfahrtEnv
 from enviroments.env_from_files import AbfahrtEnv
 import wandb
 
@@ -11,12 +9,10 @@ def train():
     def _train():
         config = utils.ConfigParams(wandb.config if USE_WANDB else None)
 
-        train_env = AbfahrtEnv(config=config, mode="eval")
-        train_env.mode = "train"
+        train_env = AbfahrtEnv(config=config, mode="train")
         train_env.reset()
         multi_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
-        eval_envs = AbfahrtEnv(config=config)
-        eval_envs.mode = "eval"
+        eval_envs = AbfahrtEnv(config=config, mode="eval")
         eval_envs.reset()
         eval_envs = make_vec_env(lambda: eval_envs, n_envs=8)
 

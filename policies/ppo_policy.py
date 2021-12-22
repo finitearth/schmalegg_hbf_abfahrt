@@ -4,7 +4,6 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.distributions import make_proba_distribution
 from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv, global_mean_pool
 from torch.nn import Linear, LazyBatchNorm1d
-import torch.nn.functional as F
 from stable_baselines3.common.policies import ActorCriticPolicy
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from torch_geometric.data import Data, HeteroData
