@@ -73,7 +73,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
-            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]))).to(self.device)
+            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
         log_probs = distribution.log_prob(actions)
@@ -89,7 +89,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     ): #-> Tuple[np.ndarray, Optional[np.ndarray]]:
         observation = torch.Tensor(observation)
         action, _, _ = self.forward(observation)
-        action = action.detach().numpy()
+        action = action.cpu().detach().numpy()
         return action, state
 
     def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor) \
@@ -101,7 +101,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
-            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]))).to(self.device)
+            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         log_prob = distribution.log_prob(actions)
 
@@ -126,7 +126,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
                 self.device)
 
             input_vectors = obs[i, 100_000:100_000 + n_stations * self.n_node_features]
-            input_vectors = torch.reshape(input_vectors, (n_stations, self.n_node_features))
+            input_vectors = torch.reshape(input_vectors, (n_stations, self.n_node_features)).to(self.device)
 
             data = CustomData(x=input_vectors,
                               edge_index_connections=edge_index_connections,
