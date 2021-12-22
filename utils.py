@@ -1,13 +1,82 @@
+import datetime
 import io
+import os
+import tempfile
+
+import cv2
+
+import wandb
 from PIL import Image, ImageDraw
 import networkx as nx
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from stable_baselines3.common.logger import Logger, make_output_format, KVWriter
 from torch import nn
 
-from enviroments import env, env2, env3, env4
+from enviroments import env_from_files
 from policies import ppo_policy, ppo_policy2, ppo_policy_mit_sd
+
+
+class ConfigParams:
+    def __init__(self, wandb_config=None):
+        w = wandb_config is not None
+        self.vf_coef =                 wandb_config.vf_coef if w            else 0.94
+        self.learning_rate =           wandb_config.learning_rate if w      else 10**-4
+        self.gamma =                   wandb_config.gamma if w              else 0.9254
+        self.clip_range =              wandb_config.clip_range if w         else 0.2
+        self.n_node_features =         wandb_config.n_node_features if w    else 2
+        self.action_vector_size =      wandb_config.action_vector_size if w else 2
+        self.hidden_neurons =          wandb_config.hidden_neurons if w     else 4
+        self.it_b4_dest =              wandb_config.it_b4_dest if w         else 20
+        self.it_aft_dest =             wandb_config.it_aft_dest if w        else 20
+        self.use_bn =                  wandb_config.use_bn if w             else False
+        self.normalize =               wandb_config.normalize if w          else True
+        self.log_std_init =            wandb_config.log_std_init if w       else -2
+        self.reward_per_step =         wandb_config.reward_per_step if w    else -2.0
+        self.reward_reached_dest =     wandb_config.reward_reached_dest if w    else 1.0
+
+        self.n_envs =                  8
+        self.batch_size = wandb_config.batch_size if w else 4  # 8
+        n_steps = wandb_config.n_steps if w else 4  # 8
+        self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size * 4# *  256
+
+        env_str =                      wandb_config.env if w                else "env"
+        envs = {"env": env_from_files}
+        self.env = envs[env_str]
+
+        policy_str =                   wandb_config.policy if w             else "ppo_policy_with_sde"
+        policies = {"ppo_policy_with_sde": ppo_policy_mit_sd}
+        self.policy = policies[policy_str]
+
+        activation_str =               wandb_config.activation if w         else "tanh"
+        activations = {"tanh": torch.tanh, "relu": torch.relu, "softplus": nn.Softplus(), "None": nn.Identity()}
+        self.activation = activations[activation_str]
+
+
+class CustomLogger(Logger):
+    def __init__(self, use_wandb):
+        folder = os.path.join(tempfile.gettempdir(), datetime.datetime.now().strftime("SB3-%Y-%m-%d-%H-%M-%S-%f"))
+        assert isinstance(folder, str)
+        os.makedirs(folder, exist_ok=True)
+
+        format_strings = os.getenv("SB3_LOG_FORMAT", "stdout,log,csv").split(",")
+        log_suffix = ""
+        self.use_wandb = use_wandb
+        super(CustomLogger, self).__init__(folder,  [make_output_format(f, folder, log_suffix) for f in format_strings])
+
+    def dump(self, step: int = 0) -> None:
+        """
+        Write all of the diagnostics from the current iteration
+        """
+        for _format in self.output_formats:
+            if isinstance(_format, KVWriter):
+                _format.write(self.name_to_value, self.name_to_excluded, step)
+        if self.use_wandb: wandb.log(self.name_to_value)
+        self.name_to_value.clear()
+        self.name_to_count.clear()
+        self.name_to_excluded.clear()
 
 
 def create_nx_graph(station1s, station2s):
@@ -23,48 +92,8 @@ def create_nx_graph(station1s, station2s):
     return graph_nx
 
 
-class ConfigParams:
-    def __init__(self, wandb_config=None):
-        w = wandb_config is not None
-        self.vf_coef =                 wandb_config.vf_coef if w            else 0.5
-        self.learning_rate =           wandb_config.learning_rate if w      else 10 ** -3
-        self.gamma =                   wandb_config.gamma if w              else 0.99
-        self.clip_range =              wandb_config.clip_range if w         else 0.35
-        self.n_node_features =         wandb_config.n_node_features if w    else 2
-        self.action_vector_size =      wandb_config.action_vector_size if w else 4
-        self.hidden_neurons =          wandb_config.hidden_neurons if w     else 4
-        self.it_b4_dest =              wandb_config.it_b4_dest if w         else 30
-        self.it_aft_dest =             wandb_config.it_aft_dest if w        else 19
-        self.use_bn =                  wandb_config.use_bn if w             else True
-        self.normalize =               wandb_config.normalize if w          else True
-        self.log_std_init =            wandb_config.log_std_init if w       else -3.0
-        self.reward_per_step = wandb_config.reward_per_step if w            else -1.0
-        self.reward_reached_dest = wandb_config.reward_reached_dest if w    else 2.0
-
-        env_str =                      wandb_config.env if w                else "env"
-        envs = {"env": env, "env2": env2, "env3": env3, "env4": env4}
-        self.env = envs[env_str]
-
-        policy_str =                   wandb_config.policy if w             else "ppo_policy_with_sde"
-        policies = {"ppo_policy": ppo_policy, "ppo_policy2": ppo_policy2, "ppo_policy_with_sde": ppo_policy_mit_sd}
-        self.policy = policies[policy_str]
-
-        activation_str =               wandb_config.activation if w         else "softplus"
-        activations = {"tanh": torch.tanh, "relu": torch.relu, "softplus": nn.Softplus(), "None": nn.Identity()}
-        self.activation = activations[activation_str]
-
-
-def plot_to_image(step):
-    """Converts the matplotlib plot specified by 'figure' to a PNG image and
-    returns it. The supplied figure is closed and inaccessible after this call."""
-    img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='png')
-
-    im = Image.open(img_buf)
-
-    d = ImageDraw.Draw(im)
-    d.text((28, 36), f"Step {step}", fill=(255, 0, 0))
-
-    im = np.array(im)
-
-    return im
+def draw_arrow(im, p0, p1, thickness=1, color=(0, 0, 0)):
+    na = np.array(im)
+    na = cv2.arrowedLine(na, p0, p1, color, thickness)
+    im = Image.fromarray(na)
+    return ImageDraw.Draw(im), im
