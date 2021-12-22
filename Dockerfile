@@ -1,6 +1,7 @@
 FROM python:3.8
 
 ADD train_sweep.py .
+<<<<<<< Updated upstream
 ADD requirements.txt / 
 ADD callbacks.py /
 ADD utils.py / 
@@ -14,6 +15,9 @@ ADD main.py /
 ADD objects.py / 
 ADD Pipfile / 
 ADD Pipfile.lock /
+=======
+ADD requirements.txt .
+>>>>>>> Stashed changes
 
 
 
