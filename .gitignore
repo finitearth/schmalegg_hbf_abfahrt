@@ -1,7 +1,8 @@
 /wandb/
-/__pycache__/
 /videos/
+/__pycache__/
+/.idea/
 *.pyc
 *.iml
-/videos/
 jhdfä2.py
+jhdfä.py
