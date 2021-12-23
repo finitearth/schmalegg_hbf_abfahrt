@@ -1,9 +1,7 @@
-# import subprocess
-# import sys
-#
-# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'stable-baselines3'])
+import numpy as np
 
+a = [[123,45,6], [23,45,5], [234, 1235, 123]]
 
-import torch
+b = np.array([2,34,5])
 
-print(torch.__version__)
+print(a@b)

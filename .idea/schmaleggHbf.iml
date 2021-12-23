@@ -355,9 +355,8 @@
       <excludeFolder url="file://$MODULE_DIR$/wandb/run-20211205_101400-mbi80uw3/tmp" />
       <excludeFolder url="file://$MODULE_DIR$/wandb/run-20211205_101530-su0l0b9m/tmp" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
-      <excludeFolder url="file://$MODULE_DIR$/wandb" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.10 (schmalegg_hbf_abfahrt)" jdkType="Python SDK" />
+    <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

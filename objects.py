@@ -67,7 +67,15 @@ class EnvBlueprint:
             json.dump(text, f)
 
     def get(self):
-        return self.routes, self.stations, self.trains
+        stations = [Station(s.capacity, s.name) for s in self.stations]
+        for sc, so in zip(stations, self.stations):
+            sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in so.passengers]
+            sc.reachable_stops = [stations[int(s)] for s in self.stations]
+            sc.input_vector = so.input_vector
+
+        trains = [Train(stations[int(t.station)], t.capacity) for t in self.trains]
+
+        return self.routes, stations, trains
 
     def random(self, n_max_stations):
         n_station = int(max(7, n_max_stations*random.random()))
@@ -132,6 +140,7 @@ class Station:
         self.reachable_stops = []
         self.vector = None
         self.input_vector = None
+
 
     def set_input_vector(self, n_node_features):
         self.input_vector = np.ones(n_node_features) * 0.95 + np.random.rand(n_node_features) * 0.1
