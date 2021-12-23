@@ -36,7 +36,7 @@ class ConfigParams:
         self.batch_size = wandb_config.batch_size if w else 4  # 8
         n_steps = wandb_config.n_steps if w else 4  # 8
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *2#  16
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  16
 
         env_str =                      wandb_config.env if w                else "env"
         envs = {"env": env_from_files}
@@ -50,8 +50,8 @@ class ConfigParams:
         activations = {"tanh": torch.tanh, "relu": torch.relu, "softplus": nn.Softplus(), "None": nn.Identity()}
         self.activation = activations[activation_str]
 
-        conv_str =                     wandb_config.conv if w               else "GCNConv"
-        convs = {"GCNConv": GCNConv, "ChebConv": ChebConv, "SAGEConv": SAGEConv, "GATConv": GATConv, "GATv2Conv": GATv2Conv}
+        conv_str =                     wandb_config.conv if w               else "SAGEConv"#"GCNConv"
+        convs = {"GCNConv": GCNConv, "ChebConv": GCNConv, "SAGEConv": SAGEConv, "GATConv": GATConv, "GATv2Conv": GATv2Conv} #TODO Chebconv
         self.conv = convs[conv_str]
 
 class CustomLogger(Logger):

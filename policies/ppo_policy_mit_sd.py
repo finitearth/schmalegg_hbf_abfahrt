@@ -88,7 +88,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             deterministic: bool = False,
     ): #-> Tuple[np.ndarray, Optional[np.ndarray]]:
         observation = torch.Tensor(observation)
-        action, _, _ = self.forward(observation)
+        action, _, _ = self.forward(observation, deterministic=False)#deterministic)
         action = action.cpu().detach().numpy()
         return action, state
 

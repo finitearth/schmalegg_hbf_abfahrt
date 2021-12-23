@@ -16,6 +16,7 @@ class AbfahrtEnv(gym.Env):
         self.observation_space = Box(-100, +100, shape=(150_003,), dtype=np.float32)
         self.action_space = Box(-100, +100, shape=(50_000,), dtype=np.float32)
         self.routes = None
+        self.shortest_path_lenghts = None
         self.action_vector_size = config.action_vector_size
         self.n_node_features = config.n_node_features
         self.config = config
@@ -45,45 +46,39 @@ class AbfahrtEnv(gym.Env):
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
-                dot_products = np.asarray([train.station.vector @ p.destination.vector
-                                           for p in train.station.passengers])
+                dot_products = train.station.vector @ [p.destination.vector for p in train.station.passengers]
                 idx = np.argmax(dot_products)
 
                 if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
                 else: break
 
             train_vector = train.station.vector
-            next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
+            next_stop_idx = np.argmax(train_vector @ [s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
         min_steps_to_go = self.config.reward_step_closer * self._min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
+        self.min_steps_to_go = min_steps_to_go
+
         active_passengers = sum([len(s.passengers) for s in self.stations+self.trains])
         reward += (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
         self.active_passengers = active_passengers
+
         done = bool(active_passengers == 0)
         if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
             done = True
             reward = -100
+
         return self.get_observation(), reward, done, {}
 
     def _min_steps_to_go(self):
         sd = []
-        for st in self.trains+self.stations:
+        for st in self.trains + self.stations:
             s = st.destination if isinstance(st, objects.Train) else st
             for p in st.passengers:
                 sd.append((int(s), int(p.destination)))
 
-        edges = self.routes
-        edges = list(zip(edges[0], edges[1]))
-        g = networkx.Graph()
-        for edge in edges:
-            g.add_edge(edge[0], edge[1])
-
-        c = 0
-        for s, d in sd:
-            c += networkx.shortest_path_length(g, s, d)
-
+        c = sum([self.shortest_path_lenghts[s][d] for s, d in sd])
         return c
 
     def reset(self):
@@ -106,6 +101,12 @@ class AbfahrtEnv(gym.Env):
             self.routes, self.stations, self.trains = self.eval_envs[0].get()
 
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features)
+        edges = self.routes
+        edges = list(zip(edges[0], edges[1]))
+        g = networkx.Graph()
+        for edge in edges:
+            g.add_edge(edge[0], edge[1])
+        self.shortest_path_lenghts = dict(networkx.shortest_path_length(g))
         self.min_steps_to_go = self.config.reward_step_closer*self._min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
         self.step_count = 0

@@ -1,6 +1,12 @@
 import sys
 import traceback
+
+import gym
+import numpy as np
+from gym import spaces
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import VecCheckNan
+
 import callbacks
 import utils
 from enviroments.env_from_files import AbfahrtEnv
@@ -14,9 +20,11 @@ def train():
         train_env = AbfahrtEnv(config=config, mode="train")
         train_env.reset()
         multi_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
+        multi_env = VecCheckNan(multi_env, raise_exception=True)
         eval_envs = AbfahrtEnv(config=config, mode="eval")
         eval_envs.reset()
         eval_envs = make_vec_env(lambda: eval_envs, n_envs=1)
+        eval_envs =  VecCheckNan(eval_envs, raise_exception=True)
 
         model = config.policy.get_model(multi_env, config)
         logger = utils.CustomLogger(USE_WANDB)

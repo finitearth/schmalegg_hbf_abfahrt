@@ -18,7 +18,7 @@ plt.switch_backend('agg')
 def get_callbacks(envs=None, use_wandb=False, config=None):
     callback_factor = 10
     eval_callback = EvalCallback(envs, eval_freq=config.n_steps*callback_factor, n_eval_episodes=12)
-    render_callback = RenderCallback(config.n_steps*callback_factor**2, envs, use_wandb, config=config)
+    render_callback = RenderCallback(config.n_steps*callback_factor, envs, use_wandb, config=config)
 
     return CustomCallBacklist([eval_callback, render_callback])
 
@@ -37,45 +37,6 @@ class CustomCallBacklist(CallbackList):
         return continue_training
 
 
-def _evaluate_policy(model, n_eval_episodes, render_fct=None, prints=True, config=None):
-    eval_env = AbfahrtEnv(mode="render", config=config)
-    eval_env.reset()
-    episode_rewards = []
-    episode_lengths = []
-    for _ in range(n_eval_episodes):
-        observation = eval_env.reset()
-        current_reward = 0
-        steps_taken = 0
-        for i in range(200):
-            if render_fct is not None: render_fct(eval_env, i)
-            observation = torch.Tensor(observation).unsqueeze(0)
-
-            action, _, _ = model.policy.forward(observation, deterministic=False)
-
-            action = action.cpu().detach().numpy()
-            action = action[0]
-            observation, reward, done, info = eval_env.step(action)
-            current_reward += reward
-
-            if done: break
-            steps_taken += 1
-
-        episode_rewards.append(current_reward)
-        episode_lengths.append(steps_taken)
-
-    if prints: print(f"======== EVALUATION =========")
-    perc_successfull = np.count_nonzero(np.asarray(episode_lengths) < 200) / n_eval_episodes * 100
-
-    mean_reward = np.mean(episode_rewards)
-    mean_length = np.mean(episode_lengths)
-    best_length = np.min(episode_lengths)
-    if prints: print(f"reached goal: {perc_successfull} %")
-    if prints: print(f"mean_length: {mean_length}")
-    if prints: print(f"best_length: {best_length}")
-
-    return mean_reward, mean_length, perc_successfull
-
-
 class RenderCallback(BaseCallback):
     def __init__(self, eval_freq, env, use_wandb=False, config=None):
         super(RenderCallback, self).__init__(verbose=1)
@@ -88,8 +49,9 @@ class RenderCallback(BaseCallback):
 
     def _on_step(self):
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            _evaluate_policy(self.model, 1, render_fct=self.render_frame, prints=False, config=self.config)
+            _, _, success = _evaluate_policy(self.model, 1, render_fct=self.render_frame, prints=False, config=self.config)
             self.render_video()
+            if success < 50: return False
         return True
 
     def render_video(self):
@@ -161,5 +123,44 @@ class RenderCallback(BaseCallback):
                 for i, p in enumerate(t.passengers, start=2):
                     d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Train -> {p.destination}", fill=black)
         im = im.convert('RGB')
-        plt.close()
         self.frames.append(np.array(im))
+        plt.close()
+
+
+def _evaluate_policy(model, n_eval_episodes, render_fct=None, prints=True, config=None):
+    eval_env = AbfahrtEnv(mode="render", config=config)
+    eval_env.reset()
+    episode_rewards = []
+    episode_lengths = []
+    for _ in range(n_eval_episodes):
+        observation = eval_env.reset()
+        current_reward = 0
+        steps_taken = 0
+        for i in range(200):
+            if render_fct is not None: render_fct(eval_env, i)
+            observation = torch.Tensor(observation).unsqueeze(0)
+
+            action, _, _ = model.policy.forward(observation, deterministic=False)
+
+            action = action.cpu().detach().numpy()
+            action = action[0]
+            observation, reward, done, info = eval_env.step(action)
+            current_reward += reward
+
+            if done: break
+            steps_taken += 1
+
+        episode_rewards.append(current_reward)
+        episode_lengths.append(steps_taken)
+
+    if prints: print(f"======== EVALUATION =========")
+    perc_successfull = np.count_nonzero(np.asarray(episode_lengths) < 200) / n_eval_episodes * 100
+
+    mean_reward = np.mean(episode_rewards)
+    mean_length = np.mean(episode_lengths)
+    best_length = np.min(episode_lengths)
+    if prints: print(f"reached goal: {perc_successfull} %")
+    if prints: print(f"mean_length: {mean_length}")
+    if prints: print(f"best_length: {best_length}")
+
+    return mean_reward, mean_length, perc_successfull

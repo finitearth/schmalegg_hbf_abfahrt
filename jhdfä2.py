@@ -1,4 +1,7 @@
-import wandb
+import numpy as np
 
-key = "0b375b7034c9bb51c8924d3942eefad26868f7e4"
-wandb.login(key=key)
+a = [[123,45,6], [23,45,5], [234, 1235, 123]]
+
+b = np.array([2,34,5])
+
+print(a@b)
