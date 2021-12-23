@@ -1,8 +1,3 @@
-import datetime
-import io
-import os
-import tempfile
-
 import cv2
 
 import wandb
@@ -10,12 +5,12 @@ from PIL import Image, ImageDraw
 import networkx as nx
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
 from stable_baselines3.common.logger import Logger, make_output_format, KVWriter
 from torch import nn
+from torch_geometric.nn import GCNConv, ChebConv, SAGEConv, GATConv, GATv2Conv
 
 from enviroments import env_from_files
-from policies import ppo_policy, ppo_policy2, ppo_policy_mit_sd
+from policies import ppo_policy_mit_sd
 
 
 class ConfigParams:
@@ -35,12 +30,13 @@ class ConfigParams:
         self.log_std_init =            wandb_config.log_std_init if w       else -2
         self.reward_per_step =         wandb_config.reward_per_step if w    else -2.0
         self.reward_reached_dest =     wandb_config.reward_reached_dest if w    else 1.0
+        self.reward_step_closer =      wandb_config.reward_step_closer if w else 1
 
         self.n_envs =                  8
         self.batch_size = wandb_config.batch_size if w else 4  # 8
         n_steps = wandb_config.n_steps if w else 4  # 8
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size * 4# *  256
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *2#  16
 
         env_str =                      wandb_config.env if w                else "env"
         envs = {"env": env_from_files}
@@ -54,17 +50,14 @@ class ConfigParams:
         activations = {"tanh": torch.tanh, "relu": torch.relu, "softplus": nn.Softplus(), "None": nn.Identity()}
         self.activation = activations[activation_str]
 
+        conv_str =                     wandb_config.conv if w               else "GCNConv"
+        convs = {"GCNConv": GCNConv, "ChebConv": ChebConv, "SAGEConv": SAGEConv, "GATConv": GATConv, "GATv2Conv": GATv2Conv}
+        self.conv = convs[conv_str]
 
 class CustomLogger(Logger):
     def __init__(self, use_wandb):
-        folder = os.path.join(tempfile.gettempdir(), datetime.datetime.now().strftime("SB3-%Y-%m-%d-%H-%M-%S-%f"))
-        assert isinstance(folder, str)
-        os.makedirs(folder, exist_ok=True)
-
-        format_strings = os.getenv("SB3_LOG_FORMAT", "stdout,log,csv").split(",")
-        log_suffix = ""
         self.use_wandb = use_wandb
-        super(CustomLogger, self).__init__(folder,  [make_output_format(f, folder, log_suffix) for f in format_strings])
+        super(CustomLogger, self).__init__("",  [make_output_format("stdout", "./logs", "")])
 
     def dump(self, step: int = 0) -> None:
         """
@@ -81,7 +74,6 @@ class CustomLogger(Logger):
 
 def create_nx_graph(station1s, station2s):
     graph = list(zip(station1s, station2s))
-
     nx_graph = nx.Graph()
     for station in set(station1s):
         nx_graph.add_node(station)

@@ -1,10 +1,11 @@
 import glob
-import time
 import gym
+import networkx
 import torch
 import numpy as np
 from gym.spaces import Box
-from enviroments import generate_envs
+
+import objects
 from objects import EnvBlueprint
 
 
@@ -20,6 +21,7 @@ class AbfahrtEnv(gym.Env):
         self.n_node_features = config.n_node_features
         self.config = config
         self.active_passengers = 0
+        self.min_steps_to_go = 0
 
         self.mode = mode
 
@@ -30,8 +32,10 @@ class AbfahrtEnv(gym.Env):
             env.read(file)
             self.eval_envs.append(env)
         self.resets = 0
+        self.step_count = 0 # help me stepcount, im stuck!
 
     def step(self, action):
+        self.step_count += 1
         if isinstance(action, torch.Tensor):
             action = action.detach().numpy()
         action = action[:self.action_vector_size * len(self.stations)]
@@ -47,18 +51,42 @@ class AbfahrtEnv(gym.Env):
                 idx = np.argmax(dot_products)
 
                 if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
-
                 else: break
 
             train_vector = train.station.vector
             next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
+        min_steps_to_go = self.config.reward_step_closer * self._min_steps_to_go()
+        reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
         active_passengers = sum([len(s.passengers) for s in self.stations+self.trains])
-        reward = (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
+        reward += (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
         self.active_passengers = active_passengers
         done = bool(active_passengers == 0)
+        if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
+            done = True
+            reward = -100
         return self.get_observation(), reward, done, {}
+
+    def _min_steps_to_go(self):
+        sd = []
+        for st in self.trains+self.stations:
+            s = st.destination if isinstance(st, objects.Train) else st
+            for p in st.passengers:
+                sd.append((int(s), int(p.destination)))
+
+        edges = self.routes
+        edges = list(zip(edges[0], edges[1]))
+
+        g = networkx.Graph()
+        for edge in edges:
+            g.add_edge(edge[0], edge[1])
+
+        c = 0
+        for s, d in sd:
+            c += networkx.shortest_path_length(g, s, d)
+
+        return c
 
     def reset(self):
         # files = glob.glob("../graphs/eval/*")
@@ -74,12 +102,15 @@ class AbfahrtEnv(gym.Env):
             self.routes, self.stations, self.trains = self.train_envs[env_idx].get()
         elif self.mode == "eval":
             self.routes, self.stations, self.trains = self.eval_envs[self.resets % len(self.eval_envs)].get()
+            self.resets += 1
+
         elif self.mode == "render":
             self.routes, self.stations, self.trains = self.eval_envs[0].get()
 
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features)
-
+        self.min_steps_to_go = self.config.reward_step_closer*self._min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
+        self.step_count = 0
         return self.get_observation()
 
     def get_observation(self):
@@ -123,9 +154,3 @@ class AbfahrtEnv(gym.Env):
             n_edge_connections,
             n_stations
         ))
-        #   TODO
-        # return CustomData(x=input_vectors, edge_index_destinations=[edge_index_destination0, edge_index_destination1],
-        #                edge_index_connections=self.routes)
-
-    def close(self):
-        pass

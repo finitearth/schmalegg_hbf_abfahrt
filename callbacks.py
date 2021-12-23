@@ -1,6 +1,4 @@
 import io
-import os
-
 import cv2
 from PIL import ImageDraw, Image
 
@@ -19,8 +17,8 @@ plt.switch_backend('agg')
 
 def get_callbacks(envs=None, use_wandb=False, config=None):
     callback_factor = 10
-    eval_callback = EvalCallback(envs, eval_freq=config.n_steps, n_eval_episodes=23)
-    render_callback = RenderCallback(config.n_steps, envs, use_wandb, config=config)
+    eval_callback = EvalCallback(envs, eval_freq=config.n_steps*callback_factor, n_eval_episodes=12)
+    render_callback = RenderCallback(config.n_steps*callback_factor**2, envs, use_wandb, config=config)
 
     return CustomCallBacklist([eval_callback, render_callback])
 
@@ -39,31 +37,6 @@ class CustomCallBacklist(CallbackList):
         return continue_training
 
 
-class EvalCallBack(BaseCallback):
-    def __init__(self, eval_freq, eval_env=None, use_wandb=False):
-        super(EvalCallBack, self).__init__(verbose=1)
-        self.eval_freq = eval_freq
-        self.eval_env = eval_env
-        self.n_eval_episodes = 16
-        self.use_wandb = use_wandb
-
-    def init_callback(self, model):
-        self.model = model
-
-    def _on_step(self) -> bool:
-        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            # Reset success rate buffer
-            self._is_success_buffer = []
-            mean_reward, mean_length, perc_successfull = _evaluate_policy(self.model,
-                                                                          self.eval_env,
-                                                                          self.n_eval_episodes)
-            if self.use_wandb:
-                wandb.log({"episode_lenghts": mean_length})
-                wandb.log({"succesfull_episodes %": perc_successfull})
-
-        return True
-
-
 def _evaluate_policy(model, n_eval_episodes, render_fct=None, prints=True, config=None):
     eval_env = AbfahrtEnv(mode="render", config=config)
     eval_env.reset()
@@ -75,7 +48,7 @@ def _evaluate_policy(model, n_eval_episodes, render_fct=None, prints=True, confi
         steps_taken = 0
         for i in range(200):
             if render_fct is not None: render_fct(eval_env, i)
-            observation = torch.tensor([observation]).float()
+            observation = torch.Tensor(observation).unsqueeze(0)
 
             action, _, _ = model.policy.forward(observation, deterministic=False)
 
@@ -188,17 +161,5 @@ class RenderCallback(BaseCallback):
                 for i, p in enumerate(t.passengers, start=2):
                     d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Train -> {p.destination}", fill=black)
         im = im.convert('RGB')
-        im = np.array(im)
         plt.close()
-        self.frames.append(im)
-
-# class WandBTrainingCallBack(BaseCallback):
-#     def __init__(self, eval_freq, logger, use_wandb):
-#         super(WandBTrainingCallBack, self).__init__(verbose=1)
-#         self.eval_freq = eval_freq
-#         self.logger = logger
-#         self.use_wandb = use_wandb
-#
-#     def _on_step(self):
-#         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0 and self.use_wandb:
-#             wandb.log(dict(self.logger.name_to_value))
+        self.frames.append(np.array(im))

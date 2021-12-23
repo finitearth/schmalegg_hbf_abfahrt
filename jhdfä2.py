@@ -1,9 +1,4 @@
-import cv2
-import numpy as np
+import wandb
 
-writer = cv2.VideoWriter("output.avi", cv2.VideoWriter_fourcc(*"MJPG"), 30,(640,480))
-
-for frame in range(1000):
-    writer.write(np.random.randint(0, 255, (480,640,3)).astype('uint8'))
-
-writer.release()
+key = "0b375b7034c9bb51c8924d3942eefad26868f7e4"
+wandb.login(key=key)

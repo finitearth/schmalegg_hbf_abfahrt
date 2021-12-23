@@ -146,19 +146,15 @@ class Extractor(nn.Module):
         self.features_dim = self.hidden_neurons
         self.latent_dim_pi = self.hidden_neurons
         self.latent_dim_vf = self.hidden_neurons
-        convclass = SAGEConv
+        convclass = config.conv
 
-        self.conv1 = convclass(config.n_node_features, config.hidden_neurons, normalize=config.normalize,
-                               bias=not config.use_bn)
+        self.conv1 = convclass(config.n_node_features, config.hidden_neurons)
         if config.use_bn: self.bn1 = LazyBatchNorm1d()
-        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize,
-                               bias=not config.use_bn)  # , aggr="add")
+        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons)
         if config.use_bn: self.bn2 = LazyBatchNorm1d()
-        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize,
-                               bias=not config.use_bn)
+        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons)
         if config.use_bn: self.bn3 = LazyBatchNorm1d()
-        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize,
-                               bias=not config.use_bn)
+        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons)
         if config.use_bn: self.bn4 = LazyBatchNorm1d()
 
         self.activation = config.activation
@@ -219,4 +215,3 @@ class CustomData(Data):
         self.edge_index_destinations = edge_index_destinations
         self.edge_index_connections = edge_index_connections
 
-    # def __inc__(self):
