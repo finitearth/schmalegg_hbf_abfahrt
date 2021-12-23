@@ -1,6 +1,5 @@
 import sys
 import traceback
-
 from stable_baselines3.common.env_util import make_vec_env
 import callbacks
 import utils

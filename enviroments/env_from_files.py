@@ -4,7 +4,6 @@ import networkx
 import torch
 import numpy as np
 from gym.spaces import Box
-
 import objects
 from objects import EnvBlueprint
 
@@ -77,7 +76,6 @@ class AbfahrtEnv(gym.Env):
 
         edges = self.routes
         edges = list(zip(edges[0], edges[1]))
-
         g = networkx.Graph()
         for edge in edges:
             g.add_edge(edge[0], edge[1])
