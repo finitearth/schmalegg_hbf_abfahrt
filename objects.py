@@ -1,9 +1,8 @@
 import random
-
 import networkx as nx
 import numpy as np
 import json
-
+import sys
 from matplotlib import pyplot as plt
 from networkx import fast_gnp_random_graph
 
@@ -16,7 +15,66 @@ class EnvBlueprint:
         self.trains = trains
         self.name = name
 
-    def read(self, file):
+    def read_txt(self, file_path):
+        with open(file_path, 'r') as f:
+            text = f.read()
+        
+        trash = text.split('[Stations]')
+        
+        stations1 = trash[1].split('[Lines]')
+        stations = str(stations1[0].replace('\n\n# Strecken: str(ID) str(Anfang) str(Ende) dec(LÃ¤nge) int(KapazitÃ¤t)\n', ''))[1:].strip()
+        single_stations = stations.split('\n')
+        station_numbers = len(single_stations)
+        station_counter = 0
+        station = []
+        stations_dict= {}
+        for s in single_stations:
+            ss = s.split(" ")
+            sss = Station(ss[1], ss[0][1:])
+            station.append(sss)
+            stations_dict[ss[0]] = sss
+            
+        routes = Routes()
+        lines1 = stations1[1].split('[Trains]')
+        lines = str(lines1[0].replace('\n', '').replace('# ZÃ¼ge: str(ID) str(Startbahnhof)/* dec(Geschwindigkeit) int(KapazitÃ¤t)', '')).strip()
+        single_lines = lines.split('\n')
+        lines_numbers = len(single_lines)
+        line_counter = 0
+        for l in single_lines:
+           ll = l.split(" ")
+           routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
+            
+        
+        trains1 = lines1[1].split('[Passengers]')
+        trains = str(trains1[0].replace('# Passagiere: str(ID) str(Startbahnhof) str(Zielbahnhof) int(GruppengrÃ¶ÃŸe) int(Ankunftszeit)', ''))[1:].strip()
+        single_trains = trains.split('\n')
+        trains_numbers = len(single_trains)
+        train_counter = 0
+        train = []
+        for t in single_trains:
+           tt = t.split(" ")
+           train.append(Train(stations_dict[tt[1]], tt[2]))
+        
+        passengers = str(trains1[1])[1:].strip()
+        single_passengers = passengers.split('\n')
+        passengers_numbers = len(single_passengers)
+        passenger_counter = 0
+        passenger = []
+        for p in single_passengers:
+            pp = p.split(" ")
+            ppp = PassengerGroup(stations_dict[pp[2], pp[3], pp[4]])
+            passenger.append(ppp)
+            stations_dict[pp[1]].passengers.append(ppp)
+            
+
+        self.passengers = passengers
+        self.routes = routes.get_all_routes()
+        self.trains = trains
+        self.stations = station
+
+        
+
+    def read_json(self, file):
         with open(file, "r") as f:
             env_dict = json.load(f)
 
