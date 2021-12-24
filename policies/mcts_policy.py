@@ -36,13 +36,9 @@ class WithSnapshots(Wrapper):
             self.unwrapped.viewer = None
         return dumps(self.env)
 
-    def load_snapshot(self, snapshot, render=False):
+    def load_snapshot(self, snapshot):
         assert not hasattr(self, "_monitor") or hasattr(
             self.env, "_monitor"), "can't backtrack while recording"
-
-        if render:
-            self.render()  # close popup windows since we can't load into them
-            self.close()
         self.env = loads(snapshot)
 
     def get_result(self, snapshot, action):

@@ -24,12 +24,12 @@ class AbfahrtEnv(gym.Env):
         self.min_steps_to_go = 0
 
         self.mode = mode
-
+        self.inference_env = None
         self.train_envs = []
         self.eval_envs = []
-        for file in glob.glob("./graphs/eval/*"):
+        for file in glob.glob("./graphs/eval/*.json"):
             env = EnvBlueprint()
-            env.read(file)
+            env.read_json(file)
             self.eval_envs.append(env)
         self.resets = 0
         self.step_count = 0 # help me stepcount, im stuck!
@@ -96,9 +96,10 @@ class AbfahrtEnv(gym.Env):
         elif self.mode == "eval":
             self.routes, self.stations, self.trains = self.eval_envs[self.resets % len(self.eval_envs)].get()
             self.resets += 1
-
         elif self.mode == "render":
             self.routes, self.stations, self.trains = self.eval_envs[0].get()
+        elif self.mode == "inference":
+            self.routes, self.stations, self.trains = self.inference_env
 
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features)
         edges = self.routes

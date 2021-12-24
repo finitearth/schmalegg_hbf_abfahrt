@@ -1,6 +1,12 @@
 from objects import EnvBlueprint
+import env
 
+
+fp = ""
 if __name__ == '__main__':
-    env = EnvBlueprint()
-    env.read_txt("input/input5.txt")
-    env.render()
+    env_bp = EnvBlueprint()
+    env_bp.read_txt(fp)
+    env_bp.render()
+
+    env_inf = env.AbfahrtEnv(mode="inference", config=model.config)
+    env_inf.inference_env = env_bp
