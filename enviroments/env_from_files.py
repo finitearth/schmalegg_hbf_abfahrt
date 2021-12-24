@@ -46,14 +46,14 @@ class AbfahrtEnv(gym.Env):
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
-                dot_products = train.station.vector @ [p.destination.vector for p in train.station.passengers]
+                dot_products = [train.station.vector @ p.destination.vector for p in train.station.passengers]
                 idx = np.argmax(dot_products)
 
                 if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
                 else: break
 
             train_vector = train.station.vector
-            next_stop_idx = np.argmax(train_vector @ [s.vector for s in train.station.reachable_stops])
+            next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
             train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
         min_steps_to_go = self.config.reward_step_closer * self._min_steps_to_go()

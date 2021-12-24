@@ -16,7 +16,7 @@ plt.switch_backend('agg')
 
 
 def get_callbacks(envs=None, use_wandb=False, config=None):
-    callback_factor = 10
+    callback_factor = 4
     eval_callback = EvalCallback(envs, eval_freq=config.n_steps*callback_factor, n_eval_episodes=12)
     render_callback = RenderCallback(config.n_steps*callback_factor, envs, use_wandb, config=config)
 
@@ -48,11 +48,15 @@ class RenderCallback(BaseCallback):
         self.frames = []
 
     def _on_step(self):
-        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            _, _, success = _evaluate_policy(self.model, 1, render_fct=self.render_frame, prints=False, config=self.config)
-            self.render_video()
-            if success < 50: return False
-        return True
+        try: 
+            if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+                _, _, success = _evaluate_policy(self.model, 1, render_fct=self.render_frame, prints=False, config=self.config)
+                self.render_video()
+                if success < 50: return False
+            return True
+        except Exception as e:
+            print(e)
+            return True
 
     def render_video(self):
         frames = self.frames

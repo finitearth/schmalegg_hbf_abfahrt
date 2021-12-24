@@ -60,7 +60,7 @@ USE_WANDB = 1
 
 if __name__ == "__main__":
     if USE_WANDB:
-        sweep_id = "wandb agent schmalegg/schmalegger-hbf/jh93ourp"
+        sweep_id = "wandb agent schmalegg/schmalegger-hbf/j0esudz0"
         sweep_id = sweep_id.split("agent ")[1]
         wandb.agent(sweep_id, function=train)
     else:

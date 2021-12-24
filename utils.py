@@ -36,7 +36,7 @@ class ConfigParams:
         self.batch_size = wandb_config.batch_size if w else 4  # 8
         n_steps = wandb_config.n_steps if w else 4  # 8
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  16
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  32
 
         env_str =                      wandb_config.env if w                else "env"
         envs = {"env": env_from_files}

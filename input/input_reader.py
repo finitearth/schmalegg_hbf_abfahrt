@@ -1,4 +1,5 @@
-input_file_path = r'C:\Users\ibele\OneDrive - bwedu\Dokumente\informatiCup\informatiCup\input\input2.txt'
+import sys
+input_file_path = sys.argv[1]
 
 def read_input_file(String : input_file_path):
     f = open(input_file_path, 'r')
@@ -49,5 +50,5 @@ def read_input_file(String : input_file_path):
         ++passenger_counter
     print(passenger)
     
-
+    return station, line, train, passenger
 read_input_file(input_file_path)
