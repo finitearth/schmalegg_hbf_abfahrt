@@ -1,15 +1,12 @@
 import sys
 import traceback
 
-import gym
-import numpy as np
-from gym import spaces
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecCheckNan
 
 import callbacks
 import utils
-from enviroments.env_from_files import AbfahrtEnv
+from env import AbfahrtEnv
 import wandb
 
 
