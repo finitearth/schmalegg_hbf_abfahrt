@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
-from enviroments.env_from_files import AbfahrtEnv
+from env import AbfahrtEnv
 
 plt.switch_backend('agg')
 

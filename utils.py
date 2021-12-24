@@ -7,10 +7,7 @@ import numpy as np
 import torch
 from stable_baselines3.common.logger import Logger, make_output_format, KVWriter
 from torch import nn
-from torch_geometric.nn import GCNConv, ChebConv, SAGEConv, GATConv, GATv2Conv
-
-from enviroments import env_from_files
-from policies import ppo_policy_mit_sd
+from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GATv2Conv
 
 
 class ConfigParams:
