@@ -74,6 +74,8 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
+        log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
+        self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
         log_probs = distribution.log_prob(actions)

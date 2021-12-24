@@ -18,61 +18,51 @@ class EnvBlueprint:
     def read_txt(self, file_path):
         with open(file_path, 'r') as f:
             text = f.read()
-        
+        text = "".join([t+"\n" for t in text.split("\n") if "#" not in t])
         trash = text.split('[Stations]')
-        
+
         stations1 = trash[1].split('[Lines]')
-        stations = str(stations1[0].replace('\n\n# Strecken: str(ID) str(Anfang) str(Ende) dec(LÃ¤nge) int(KapazitÃ¤t)\n', ''))[1:].strip()
+        stations = str(
+            stations1[0])[1:].strip()
         single_stations = stations.split('\n')
-        station_numbers = len(single_stations)
-        station_counter = 0
-        station = []
-        stations_dict= {}
+        station_list = []
+        stations_dict = {}
         for s in single_stations:
             ss = s.split(" ")
-            sss = Station(ss[1], ss[0][1:])
-            station.append(sss)
+            sss = Station(ss[1], int(ss[0][1:]))
+            station_list.append(sss)
             stations_dict[ss[0]] = sss
-            
+
         routes = Routes()
         lines1 = stations1[1].split('[Trains]')
-        lines = str(lines1[0].replace('\n', '').replace('# ZÃ¼ge: str(ID) str(Startbahnhof)/* dec(Geschwindigkeit) int(KapazitÃ¤t)', '')).strip()
+        lines = str(lines1[0]).strip()
         single_lines = lines.split('\n')
-        lines_numbers = len(single_lines)
-        line_counter = 0
         for l in single_lines:
-           ll = l.split(" ")
-           routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
-            
-        
+            ll = l.split(" ")
+            routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
+
         trains1 = lines1[1].split('[Passengers]')
-        trains = str(trains1[0].replace('# Passagiere: str(ID) str(Startbahnhof) str(Zielbahnhof) int(GruppengrÃ¶ÃŸe) int(Ankunftszeit)', ''))[1:].strip()
+        trains = str(trains1[0])[1:].strip()
         single_trains = trains.split('\n')
-        trains_numbers = len(single_trains)
-        train_counter = 0
-        train = []
+        train_list = []
         for t in single_trains:
-           tt = t.split(" ")
-           train.append(Train(stations_dict[tt[1]], tt[2]))
-        
+            tt = t.split(" ")
+            ttt = stations_dict[tt[1]] if tt[1] != "*" else list(stations_dict.values())[0]
+            train_list.append(Train(ttt, tt[2]))
+
         passengers = str(trains1[1])[1:].strip()
         single_passengers = passengers.split('\n')
-        passengers_numbers = len(single_passengers)
-        passenger_counter = 0
         passenger = []
         for p in single_passengers:
             pp = p.split(" ")
-            ppp = PassengerGroup(stations_dict[pp[2], pp[3], pp[4]])
+            ppp = PassengerGroup(stations_dict[pp[2]], pp[3], pp[4])
             passenger.append(ppp)
             stations_dict[pp[1]].passengers.append(ppp)
-            
 
         self.passengers = passengers
         self.routes = routes.get_all_routes()
-        self.trains = trains
-        self.stations = station
-
-        
+        self.trains = train_list
+        self.stations = station_list
 
     def read_json(self, file):
         with open(file, "r") as f:
@@ -121,13 +111,14 @@ class EnvBlueprint:
                            for passenger in self.passengers],
             "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
 
-        with open(self.name+".json", "w") as f:
+        with open(self.name + ".json", "w") as f:
             json.dump(text, f)
 
     def get(self):
         stations = [Station(s.capacity, s.name) for s in self.stations]
         for sc, so in zip(stations, self.stations):
-            sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in so.passengers]
+            sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in
+                             so.passengers]
             sc.reachable_stops = [stations[int(s)] for s in self.stations]
             sc.input_vector = so.input_vector
 
@@ -136,7 +127,7 @@ class EnvBlueprint:
         return self.routes, stations, trains
 
     def random(self, n_max_stations):
-        n_station = int(max(7, n_max_stations*random.random()))
+        n_station = int(max(7, n_max_stations * random.random()))
 
         p = 2 / (n_station + 1)
         graph = fast_gnp_random_graph(n_station, p)
@@ -198,7 +189,6 @@ class Station:
         self.reachable_stops = []
         self.vector = None
         self.input_vector = None
-
 
     def set_input_vector(self, n_node_features):
         self.input_vector = np.ones(n_node_features) * 0.95 + np.random.rand(n_node_features) * 0.1
