@@ -1,4 +1,6 @@
 import random
+import re
+
 import networkx as nx
 import numpy as np
 import json
@@ -18,48 +20,53 @@ class EnvBlueprint:
     def read_txt(self, file_path):
         with open(file_path, 'r') as f:
             text = f.read()
-        text = "".join([t+"\n" for t in text.split("\n") if "#" not in t])
-        trash = text.split('[Stations]')
+        text = "".join([t + "\n" for t in text.split("\n") if "#" not in t])
+        splits = re.split(r"(\[Stations\]|\[Lines\]|\[Passengers\]|\[Trains\])", text)
 
-        stations1 = trash[1].split('[Lines]')
-        stations = str(
-            stations1[0])[1:].strip()
-        single_stations = stations.split('\n')
+        for i, split in enumerate(splits):
+            if "[Stations]" in split:
+                stations_text = splits[i + 1].replace("[Stations]\n", "")
+            elif "[Lines]" in split:
+                lines_text = splits[i + 1].replace("[Lines]\n", "")
+            elif "[Passengers]" in split:
+                passengers_text = splits[i + 1].replace("[Passengers]\n", "")
+            elif "[Trains]" in split:
+                trains_text = splits[i + 1].replace("[Trains]\n", "")
+
+        single_stations = stations_text.split('\n')
         station_list = []
         stations_dict = {}
-        for s in single_stations:
+        for i, s in enumerate([s for s in single_stations if s != "" and s != " "]):
             ss = s.split(" ")
-            sss = Station(ss[1], int(ss[0][1:]))
+            sss = Station(int(ss[0][1]), i)
             station_list.append(sss)
             stations_dict[ss[0]] = sss
 
         routes = Routes()
-        lines1 = stations1[1].split('[Trains]')
-        lines = str(lines1[0]).strip()
-        single_lines = lines.split('\n')
+        single_lines = lines_text.split('\n')
         for l in single_lines:
+            if l == "" or l == " ": continue
             ll = l.split(" ")
             routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
 
-        trains1 = lines1[1].split('[Passengers]')
-        trains = str(trains1[0])[1:].strip()
-        single_trains = trains.split('\n')
+        single_trains = trains_text.split('\n')
         train_list = []
         for t in single_trains:
+            if t == "" or t == " ": continue
             tt = t.split(" ")
             ttt = stations_dict[tt[1]] if tt[1] != "*" else list(stations_dict.values())[0]
-            train_list.append(Train(ttt, tt[2]))
+            train_list.append(Train(ttt, int(tt[3])))
 
-        passengers = str(trains1[1])[1:].strip()
-        single_passengers = passengers.split('\n')
+        passengers_text = passengers_text.split('\n')
         passenger = []
-        for p in single_passengers:
+        for p in passengers_text:
+            if p == "" or p == " ": continue
             pp = p.split(" ")
             ppp = PassengerGroup(stations_dict[pp[2]], pp[3], pp[4])
             passenger.append(ppp)
             stations_dict[pp[1]].passengers.append(ppp)
 
-        self.passengers = passengers
+        self.passengers = passenger
         self.routes = routes.get_all_routes()
         self.trains = train_list
         self.stations = station_list

@@ -9,7 +9,7 @@ from objects import EnvBlueprint
 
 
 class AbfahrtEnv(gym.Env):
-    def __init__(self, config, mode="eval"):
+    def __init__(self, config, mode="eval", using_mcts=False):
         super(AbfahrtEnv, self).__init__()
         self.stations = []
         self.trains = []
@@ -22,9 +22,10 @@ class AbfahrtEnv(gym.Env):
         self.config = config
         self.active_passengers = 0
         self.min_steps_to_go = 0
+        self.using_mcts = using_mcts
 
         self.mode = mode
-        self.inference_env = None
+        self.inference_env_bp = None
         self.train_envs = []
         self.eval_envs = []
         for file in glob.glob("./graphs/eval/*.json"):
@@ -35,14 +36,21 @@ class AbfahrtEnv(gym.Env):
         self.step_count = 0 # help me stepcount, im stuck!
 
     def step(self, action):
-        self.step_count += 1
-        if isinstance(action, torch.Tensor):
-            action = action.detach().numpy()
-        action = action[:self.action_vector_size * len(self.stations)]
-        for i, station in enumerate(self.stations):
-            station.vector = action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
+        if self.using_mcts:
+            ppo_action = action[0]
+            mcts_action = action[1]
+        else:
+            ppo_action = action
+            mcts_action = None
 
-        for train in self.trains: # rerouting of trains and onboarding
+        self.step_count += 1
+        if isinstance(ppo_action, torch.Tensor):
+            ppo_action = ppo_action.detach().numpy()
+        ppo_action = ppo_action[:self.action_vector_size * len(self.stations)]
+        for i, station in enumerate(self.stations):
+            station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
+
+        for train in self.trains: # onboarding
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
@@ -52,9 +60,7 @@ class AbfahrtEnv(gym.Env):
                 if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
                 else: break
 
-            train_vector = train.station.vector
-            next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
-            train.reroute_to(train.station.reachable_stops[next_stop_idx])
+        self.rerouting_trains(mcts_action)
 
         min_steps_to_go = self.config.reward_step_closer * self._min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
@@ -71,18 +77,30 @@ class AbfahrtEnv(gym.Env):
 
         return self.get_observation(), reward, done, {}
 
+    def rerouting_trains(self, mcts_action=None):
+        if self.using_mcts:
+            print(mcts_action)
+            for (train, station) in mcts_action:
+                train.reroute_to(station)
+        else:
+            for train in self.trains:
+                train_vector = train.station.vector
+                next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
+                train.reroute_to(train.station.reachable_stops[next_stop_idx])
+
     def _min_steps_to_go(self):
         sd = []
         for st in self.trains + self.stations:
             s = st.destination if isinstance(st, objects.Train) else st
+            if not s: continue
             for p in st.passengers:
-                sd.append((int(s), int(p.destination)))
+                sd.append((int(s),
+                           int(p.destination)))
 
         c = sum([self.shortest_path_lenghts[s][d] for s, d in sd])
         return c
 
     def reset(self):
-        # files = glob.glob("../graphs/eval/*")
         if self.resets % self.config.batch_size == 0:
             for _ in range(self.config.batch_size):
                 env = EnvBlueprint()
@@ -99,7 +117,7 @@ class AbfahrtEnv(gym.Env):
         elif self.mode == "render":
             self.routes, self.stations, self.trains = self.eval_envs[0].get()
         elif self.mode == "inference":
-            self.routes, self.stations, self.trains = self.inference_env
+            self.routes, self.stations, self.trains = self.inference_env_bp.get()
 
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features)
         edges = self.routes
@@ -131,6 +149,7 @@ class AbfahrtEnv(gym.Env):
                 edge_index_destination0 += [int(s)]
                 edge_index_destination1 += [int(p.destination)]
                 n_passenger += 1
+
         for t in self.trains:
             for p in t.passengers:
                 edge_index_destination0 += [int(t.destination)]

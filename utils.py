@@ -8,6 +8,9 @@ import torch
 from stable_baselines3.common.logger import Logger, make_output_format, KVWriter
 from torch import nn
 from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GATv2Conv
+import env
+from policies import ppo_policy
+
 
 
 class ConfigParams:
@@ -33,14 +36,14 @@ class ConfigParams:
         self.batch_size = wandb_config.batch_size if w else 4  # 8
         n_steps = wandb_config.n_steps if w else 4  # 8
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  32
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  1
 
         env_str =                      wandb_config.env if w                else "env"
-        envs = {"env": env_from_files}
+        envs = {"env": env}
         self.env = envs[env_str]
 
         policy_str =                   wandb_config.policy if w             else "ppo_policy_with_sde"
-        policies = {"ppo_policy_with_sde": ppo_policy_mit_sd}
+        policies = {"ppo_policy_with_sde": ppo_policy}
         self.policy = policies[policy_str]
 
         activation_str =               wandb_config.activation if w         else "tanh"
