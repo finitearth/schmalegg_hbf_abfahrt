@@ -62,7 +62,7 @@ class AbfahrtEnv(gym.Env):
 
         self.rerouting_trains(mcts_action)
 
-        min_steps_to_go = self.config.reward_step_closer * self._min_steps_to_go()
+        min_steps_to_go = self._min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
         self.min_steps_to_go = min_steps_to_go
 
@@ -79,7 +79,6 @@ class AbfahrtEnv(gym.Env):
 
     def rerouting_trains(self, mcts_action=None):
         if self.using_mcts:
-            print(mcts_action)
             for (train, station) in mcts_action:
                 train.reroute_to(station)
         else:
@@ -92,17 +91,16 @@ class AbfahrtEnv(gym.Env):
         sd = []
         for st in self.trains + self.stations:
             s = st.destination if isinstance(st, objects.Train) else st
-            if not s: continue
             for p in st.passengers:
-                sd.append((int(s),
-                           int(p.destination)))
-
+                a = int(s)
+                b = int(p.destination)
+                sd.append((a, b))
         c = sum([self.shortest_path_lenghts[s][d] for s, d in sd])
         return c
 
     def reset(self):
         if self.resets % self.config.batch_size == 0:
-            for _ in range(self.config.batch_size):
+            for _ in range(self.config.batch_size*4):
                 env = EnvBlueprint()
                 env.random(n_max_stations=30)
                 self.train_envs.append(env)
@@ -119,7 +117,7 @@ class AbfahrtEnv(gym.Env):
         elif self.mode == "inference":
             self.routes, self.stations, self.trains = self.inference_env_bp.get()
 
-        for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features)
+        for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features, config=self.config)
         edges = self.routes
         edges = list(zip(edges[0], edges[1]))
         g = networkx.Graph()

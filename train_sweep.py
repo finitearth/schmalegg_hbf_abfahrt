@@ -2,7 +2,7 @@ import sys
 import traceback
 
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import VecCheckNan, VecNormalize
+from stable_baselines3.common.vec_env import VecNormalize
 
 import callbacks
 import utils
@@ -22,7 +22,7 @@ def train():
         eval_envs = AbfahrtEnv(config=config, mode="eval")
         eval_envs.reset()
         eval_envs = make_vec_env(lambda: eval_envs, n_envs=1)
-        eval_envs = VecNormalize(eval_envs, norm_obs=False, gamma=config.gamma)
+        eval_envs = VecNormalize(eval_envs, norm_obs=False, gamma=config.gamma, training=False)
 
         model = config.policy.get_model(multi_env, config)
         logger = utils.CustomLogger(USE_WANDB)
@@ -58,7 +58,7 @@ USE_WANDB = 0
 
 if __name__ == "__main__":
     if USE_WANDB:
-        sweep_id = "wandb agent schmalegg/schmalegger-hbf/hdzymwqg"
+        sweep_id = "wandb agent schmalegg/schmalegger-hbf/w1lzhdhl"
         sweep_id = sweep_id.split("agent ")[1]
         wandb.agent(sweep_id, function=train)
     else:

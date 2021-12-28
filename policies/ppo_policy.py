@@ -7,7 +7,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.distributions import make_proba_distribution, StateDependentNoiseDistribution, \
     DiagGaussianDistribution
 from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv, global_mean_pool, global_add_pool, GCNConv
-from torch.nn import Linear, LazyBatchNorm1d
+from torch.nn import Linear
 from stable_baselines3.common.policies import ActorCriticPolicy
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from torch_geometric.data import Data, HeteroData
@@ -43,7 +43,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         self.hidden_neurons = config.hidden_neurons
         self.output_features = config.action_vector_size
         self.n_node_features = config.n_node_features
-        self.use_bn = config.use_bn
+        # self.use_bn = config.use_bn
         self.normalize = config.normalize
         super(CustomActorCriticPolicy, self).__init__(observation_space, action_space, lr_schedule, **kwargs)
 
@@ -56,8 +56,8 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     def _build(self, lr_schedule):
         self.mlp_extractor = Extractor(self.config)
 
-        self.value_net = ValueNet(self.hidden_neurons)
-        self.policy_net = PolicyNet(self.hidden_neurons, self.output_features)
+        self.value_net = ValueNet(self.hidden_neurons, self.config)
+        self.policy_net = PolicyNet(self.hidden_neurons, self.output_features, self.config)
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
         _, self.log_std = self.action_dist.proba_distribution_net(latent_dim=latent_dim_pi,
                                                                   log_std_init=self.log_std_init)
@@ -74,8 +74,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
-        # log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
-        # self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
+        if torch.isnan(self.log_std).any():
+            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
+            self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
         log_probs = distribution.log_prob(actions)
@@ -104,6 +105,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
+        if torch.isnan(self.log_std).any():
+            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
+            self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         log_prob = distribution.log_prob(actions)
 
@@ -150,60 +154,63 @@ class Extractor(nn.Module):
         self.latent_dim_vf = self.hidden_neurons
         convclass = config.conv
 
-        self.conv1 = convclass(config.n_node_features, config.hidden_neurons)
-        if config.use_bn: self.bn1 = LazyBatchNorm1d()
-        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons)
-        if config.use_bn: self.bn2 = LazyBatchNorm1d()
-        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons)
-        if config.use_bn: self.bn3 = LazyBatchNorm1d()
-        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons)
-        if config.use_bn: self.bn4 = LazyBatchNorm1d()
-
+        self.conv1 = convclass(config.n_node_features, config.hidden_neurons, normalize=config.normalize, aggr=config.aggr_con)
+        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize, aggr=config.aggr_con)
+        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=False, aggr=config.aggr_dest)
+        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, normalize=config.normalize, aggr=config.aggr_con)
+        self.lin_layers = [Linear(config.hidden_neurons, config.hidden_neurons) for _ in range(config.n_lin_extr)]
         self.activation = config.activation
 
         self.config = config
 
     def forward(self, x, edge_index_connections, edge_index_destinations, use_sde=False):
         x = self.conv1(x, edge_index_connections)
-        x = self.activation(x)
-        if self.config.use_bn: x = self.bn1(x)
+        x = x_0 = self.activation(x)
         for _ in range(self.config.it_b4_dest):
-            x = self.conv4(x, edge_index_connections)
+            x = self.conv2(x, edge_index_connections)
             x = self.activation(x)
-            if self.config.use_bn: x = self.bn2(x)
-
-        x = self.conv2(x, edge_index_destinations)
-        x = self.activation(x)
-        if self.config.use_bn:  x = self.bn3(x)
+        x = x_0 + x
+        x = self.conv3(x, edge_index_destinations)
+        x_0 = x = self.activation(x)
 
         for _ in range(self.config.it_aft_dest):
-            x = self.conv3(x, edge_index_connections)
+            x = self.conv4(x, edge_index_connections)
             x = self.activation(x)
-            if self.config.use_bn: x = self.bn4(x)
+        x = x_0 + x
+
+        x_0 = x
+        for lin in self.lin_layers:
+            x = lin(x)
+        x = x_0 + x
 
         return x
 
 
 class PolicyNet(nn.Module):
-    def __init__(self, hidden_neurons, output_features):
+    def __init__(self, hidden_neurons, output_features, config):
         super(PolicyNet, self).__init__()
+        self.lins = [Linear(hidden_neurons, hidden_neurons) for _ in range(config.n_lin_policy)]
         self.lin1 = Linear(hidden_neurons, output_features)
 
     def forward(self, x, edge_index_connections, edge_index_destinations):
+        for lin in self.lins:
+            x = lin(x)
         x = self.lin1(x)
-
         return x
 
 
 class ValueNet(nn.Module):
-    def __init__(self, hidden_neurons):
+    def __init__(self, hidden_neurons, config):
         super(ValueNet, self).__init__()
+        self.lins = [Linear(hidden_neurons*2, hidden_neurons*2) for _ in range(config.n_lin_value)]
         self.lin1 = Linear(hidden_neurons * 2, 1)
 
     def forward(self, x, edge_index_connections, edge_index_destinations, batch):
         x1 = global_add_pool(x, batch)
         x2 = global_mean_pool(x, batch)
         x = torch.cat((x1, x2), dim=1)
+        for lin in self.lins:
+            x = lin(x)
         x = self.lin1(x)
 
         return x

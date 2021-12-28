@@ -197,8 +197,8 @@ class Station:
         self.vector = None
         self.input_vector = None
 
-    def set_input_vector(self, n_node_features):
-        self.input_vector = np.ones(n_node_features) * 0.95 + np.random.rand(n_node_features) * 0.1
+    def set_input_vector(self, n_node_features, config):
+        self.input_vector = np.ones(n_node_features) * (1-config.range_inputvec) + np.random.rand(n_node_features) * 2*config.range_inputvec
 
     def getencoding(self):
         return self.input_vector
