@@ -39,7 +39,6 @@ def train():
                 ex_type, ex_value, ex_traceback = sys.exc_info()
                 trace_back = traceback.extract_tb(ex_traceback)
 
-                # Format stacktrace
                 stack_trace = list()
 
                 for trace in trace_back:

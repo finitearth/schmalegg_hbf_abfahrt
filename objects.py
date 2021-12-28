@@ -55,7 +55,7 @@ class EnvBlueprint:
             if t == "" or t == " ": continue
             tt = t.split(" ")
             ttt = stations_dict[tt[1]] if tt[1] != "*" else list(stations_dict.values())[0]
-            train_list.append(Train(ttt, int(tt[3])))
+            train_list.append(Train(ttt, int(tt[3]), name=tt[0][1:]))
 
         passengers_text = passengers_text.split('\n')
         passenger = []
@@ -206,8 +206,8 @@ class Station:
     def __int__(self):
         return int(self.name)
 
-    def __repr__(self):
-        return str(int(self))
+    # def __repr__(self):
+    #     return str(int(self))
 
 
 class Routes:
@@ -245,13 +245,14 @@ class PassengerGroup:
 
 
 class Train:
-    def __init__(self, station, capacity):
+    def __init__(self, station, capacity, name="47"):
         assert isinstance(station, Station), f"{station} is not of type Station"
         self.speed = 1
         self.station = station
         self.destination = None
         self.capacity = capacity
         self.passengers = []
+        self.name = name
 
     def reached_next_stop(self):
         if self.destination is not None:
@@ -273,3 +274,6 @@ class Train:
     def reroute_to(self, destination):
         assert isinstance(destination, Station), f"{destination} is not of type Station"
         self.destination = destination
+
+    def __int__(self):
+        return int(self.name)

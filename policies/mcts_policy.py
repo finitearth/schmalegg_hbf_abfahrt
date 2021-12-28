@@ -57,7 +57,9 @@ class MCTSEnv(Wrapper):
         return next_snapshot, observation, reward, done, info
 
     def get_possible_mcts_actions(self):
-        actions = [[(t, d) for d in t.station.reachable_stops] for t in self.trains]
+        trains_dict = self.env.trains_dict
+        stations_dict = self.env.stations_dict
+        actions = [[(trains_dict[int(t)], stations_dict[int(d)]) for d in t.station.reachable_stops] for t in self.trains]
         actions = cart_product(*actions)
         return actions
 
@@ -72,10 +74,13 @@ class Node:
     qvalue_sum = 0.  # sum of Q-values from all visits (numerator)
     times_visited = 0  # counter of visits (denominator)
 
-    def __init__(self, parent, action, env, ppo_model):
+    def __init__(self, parent, action, env, snapshot, ppo_model):
+        print("NEUE NODE ERSTELLT")
         self.parent = parent
         self.action = action
         self.env = env
+        self.env.load_snapshot(snapshot)
+
         self.ppo_model = ppo_model
         self.children = set()  # set of child nodes
         # get action outcome and save it
@@ -110,8 +115,10 @@ class Node:
         print("EXPANDING :O")
         assert not self.is_done, "can't expand from terminal state"
         actions = self.env.get_possible_mcts_actions()
+        env = self.env
+        snapshot = self.env.get_snapshot()
         for action in actions:
-            self.children.add(Node(self, action, self.env, self.ppo_model))
+            self.children.add(Node(self, action, self.env, snapshot, self.ppo_model))
 
         return self.select_best_leaf()
 

@@ -12,7 +12,6 @@ import env
 from policies import ppo_policy
 
 
-
 class ConfigParams:
     def __init__(self, wandb_config=None):
         w = wandb_config is not None
@@ -39,7 +38,7 @@ class ConfigParams:
         self.batch_size = wandb_config.batch_size if w else 16
         n_steps = wandb_config.n_steps if w else 48
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size  *  128
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size * 128
 
         self.n_lin_extr =      wandb_config.n_lin_extr if w else 3
         self.n_lin_policy =    wandb_config.n_lin_policy if w else 1

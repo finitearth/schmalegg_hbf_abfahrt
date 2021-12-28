@@ -13,6 +13,9 @@ class AbfahrtEnv(gym.Env):
         super(AbfahrtEnv, self).__init__()
         self.stations = []
         self.trains = []
+        self.trains_dict = {}
+        self.stations_dict = {}
+
         self.observation_space = Box(-100, +100, shape=(150_003,), dtype=np.float32)
         self.action_space = Box(-100, +100, shape=(50_000,), dtype=np.float32)
         self.routes = None
@@ -80,6 +83,8 @@ class AbfahrtEnv(gym.Env):
     def rerouting_trains(self, mcts_action=None):
         if self.using_mcts:
             for (train, station) in mcts_action:
+                train = self.trains_dict[int(train)]
+                station = self.stations_dict[int(station)]
                 train.reroute_to(station)
         else:
             for train in self.trains:
@@ -118,6 +123,8 @@ class AbfahrtEnv(gym.Env):
             self.routes, self.stations, self.trains = self.inference_env_bp.get()
 
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features, config=self.config)
+        self.trains_dict = {int(t): t for t in self.trains}
+        self.stations_dict = {int(s): s for s in self.stations}
         edges = self.routes
         edges = list(zip(edges[0], edges[1]))
         g = networkx.Graph()
