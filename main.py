@@ -2,7 +2,7 @@ from objects import EnvBlueprint
 import env
 
 
-fp = "input/input5.txt"
+fp = "input/input4.txt"
 if __name__ == '__main__':
     env_bp = EnvBlueprint()
     env_bp.read_txt(fp)

@@ -18,7 +18,7 @@ def something(observation, env, ppo_model):
     plan_mcts(root)
 
 
-def plan_mcts(root, n_iters=1):
+def plan_mcts(root, n_iters=10):
     """
     builds tree with monte-carlo tree search for n_iters iterations
     :param root: tree node to plan from
@@ -38,7 +38,7 @@ class MCTSEnv(Wrapper):
     def __init__(self, env, ppo_model):
         super().__init__(env)
         self.ppo_model = ppo_model
-        self.nodes = []
+        self.nodes = set()
 
     def get_snapshot(self):
         return dumps(self.env)
@@ -98,16 +98,16 @@ class Node:
         self.parent = parent
         self.action = action
         self.env = env
+        self.snapshot = snapshot
         if self in self.env.nodes:
             self.is_done = True
             self.immediate_reward = -100
         else:
-            self.env.nodes.append(self)
-            self.env.load_snapshot(snapshot)
-            self.ppo_model = ppo_model
-            self.children = set()
-            res = self.env.get_result(parent.snapshot, action)
-            self.snapshot, self.observation, self.immediate_reward, self.is_done, _ = res
+            self.env.nodes.add(self)
+
+        self.ppo_model = ppo_model
+        self.children = set()
+
 
     def is_leaf(self):
         return len(self.children) == 0
@@ -143,7 +143,7 @@ class Node:
 
         return self.select_best_leaf()
 
-    def rollout(self, t_max=0):
+    def rollout(self, t_max=10):
         self.env.load_snapshot(self.snapshot)
         rollout_reward = self.immediate_reward
 
@@ -159,6 +159,8 @@ class Node:
         return rollout_reward
 
     def propagate(self, child_qvalue):
+        res = self.env.get_result(self.parent.snapshot, self.action)
+        self.snapshot, self.observation, self.immediate_reward, self.is_done, _ = res
         qvalue = self.immediate_reward + child_qvalue
 
         self.qvalue_sum += qvalue

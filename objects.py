@@ -183,7 +183,7 @@ class EnvBlueprint:
         graph = nx.Graph()
         for edge in edges:
             graph.add_edge(edge[0], edge[1])
-        nx.draw(graph)
+        nx.draw(graph, with_labels=True)
         plt.show()
 
 
