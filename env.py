@@ -31,10 +31,11 @@ class AbfahrtEnv(gym.Env):
         self.inference_env_bp = None
         self.train_envs = []
         self.eval_envs = []
-        for file in glob.glob("./graphs/eval/*.json"):
-            env = EnvBlueprint()
-            env.read_json(file)
-            self.eval_envs.append(env)
+        if self.mode != "inference":
+            for file in glob.glob("./graphs/eval/*.json"):
+                env = EnvBlueprint()
+                env.read_json(file)
+                self.eval_envs.append(env)
         self.resets = 0
         self.step_count = 0 # help me stepcount, im stuck!
 
@@ -104,7 +105,7 @@ class AbfahrtEnv(gym.Env):
         return c
 
     def reset(self):
-        if self.resets % self.config.batch_size == 0:
+        if self.resets % self.config.batch_size == 0 and self.mode != "inference":
             for _ in range(self.config.batch_size*4):
                 env = EnvBlueprint()
                 env.random(n_max_stations=30)

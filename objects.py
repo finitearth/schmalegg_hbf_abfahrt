@@ -4,7 +4,6 @@ import re
 import networkx as nx
 import numpy as np
 import json
-import sys
 from matplotlib import pyplot as plt
 from networkx import fast_gnp_random_graph
 
@@ -55,7 +54,7 @@ class EnvBlueprint:
             if t == "" or t == " ": continue
             tt = t.split(" ")
             ttt = stations_dict[tt[1]] if tt[1] != "*" else list(stations_dict.values())[0]
-            train_list.append(Train(ttt, int(tt[3]), name=tt[0][1:]))
+            train_list.append(Train(ttt, int(tt[3]), name=int(tt[0][1:])))
 
         passengers_text = passengers_text.split('\n')
         passenger = []
@@ -129,7 +128,7 @@ class EnvBlueprint:
             sc.reachable_stops = [stations[int(s)] for s in self.stations]
             sc.input_vector = so.input_vector
 
-        trains = [Train(stations[int(t.station)], t.capacity) for t in self.trains]
+        trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
 
         return self.routes, stations, trains
 
@@ -245,7 +244,7 @@ class PassengerGroup:
 
 
 class Train:
-    def __init__(self, station, capacity, name="47"):
+    def __init__(self, station, capacity, name):
         assert isinstance(station, Station), f"{station} is not of type Station"
         self.speed = 1
         self.station = station
