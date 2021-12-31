@@ -96,8 +96,8 @@ class EnvBlueprint:
             station.passengers.append(pg)
 
         trains = []
-        for train in env_dict["trains"]:
-            trains.append(Train(stations_dict[str(train["station"])], train["capacity"]))
+        for i, train in enumerate(env_dict["trains"]):
+            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
 
         # self.name = env_dict["name"]
         self.passengers = passengers
@@ -125,7 +125,7 @@ class EnvBlueprint:
         for sc, so in zip(stations, self.stations):
             sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in
                              so.passengers]
-            sc.reachable_stops = [stations[int(s)] for s in self.stations]
+            sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
             sc.input_vector = so.input_vector
 
         trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
@@ -152,7 +152,7 @@ class EnvBlueprint:
             routes.add(stations[e[0]], stations[e[1]])
         self.routes = routes.get_all_routes()
 
-        n_passenger_group_max = 3
+        n_passenger_group_max = 20
         n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
         for _ in range(n_passenger_group):
             station = random.choice(stations)
@@ -170,10 +170,10 @@ class EnvBlueprint:
         n_trains_max = 1
         trains = []
         n_trains = max(1, int(n_trains_max * random.random()))
-        for _ in range(n_trains):  # TODO wildcard trains
+        for i in range(n_trains):  # TODO wildcard trains
             station = random.choice(stations)
             capacity = 100  # random.randint(1, 10)
-            train = Train(station, capacity)
+            train = Train(station, capacity, name=str(i))
             trains.append(train)
         self.trains = trains
 
@@ -197,13 +197,17 @@ class Station:
         self.input_vector = None
 
     def set_input_vector(self, n_node_features, config):
-        self.input_vector = np.ones(n_node_features) * (1-config.range_inputvec) + np.random.rand(n_node_features) * 2*config.range_inputvec
+        self.input_vector = np.ones(n_node_features) * (1 - config.range_inputvec) \
+                          + np.random.rand(n_node_features) * config.range_inputvec * 2
 
     def getencoding(self):
         return self.input_vector
 
     def __int__(self):
         return int(self.name)
+
+    def __eq__(self, other):
+        return self.name == other.name
 
     # def __repr__(self):
     #     return str(int(self))
@@ -225,9 +229,9 @@ class Routes:
         self.station2s.append(station2)
 
     def get_all_routes(self):
-        s1 = [int(s) for s in self.station1s]
-        s2 = [int(s) for s in self.station2s]
-        return s1 + s2, s2 + s1
+        s1 = [int(s) for s in self.station1s+self.station2s]
+        s2 = [int(s) for s in self.station2s+self.station1s]
+        return s1, s2
 
 
 class PassengerGroup:

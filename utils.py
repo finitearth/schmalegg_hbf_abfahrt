@@ -15,19 +15,20 @@ from policies import ppo_policy
 class ConfigParams:
     def __init__(self, wandb_config=None):
         w = wandb_config is not None
-        self.vf_coef =                 wandb_config.vf_coef if w            else 0.5
-        self.learning_rate =           wandb_config.learning_rate if w      else 10**-6
-        self.gamma =                   wandb_config.gamma if w              else 0.9999
-        self.clip_range =              wandb_config.clip_range if w         else 0.2
-        self.n_node_features =         wandb_config.n_node_features if w    else 4
-        self.action_vector_size =      wandb_config.action_vector_size if w else 8
-        self.hidden_neurons =          wandb_config.hidden_neurons if w     else 32
-        self.it_b4_dest =              wandb_config.it_b4_dest if w         else 20
-        self.it_aft_dest =             wandb_config.it_aft_dest if w        else 20
-        self.normalize =               wandb_config.normalize if w          else True
-        self.log_std_init =            wandb_config.log_std_init if w       else -2
+        self.vf_coef =                 wandb_config.vf_coef if w            else 1#.5
+        self.learning_rate =           wandb_config.learning_rate if w      else 10**-5
+        self.gamma =                   wandb_config.gamma if w              else 0.99
+        self.clip_range =              wandb_config.clip_range if w         else .1
 
-        self.reward_per_step =         wandb_config.reward_per_step if w    else 0# -.05
+        self.n_node_features =         wandb_config.n_node_features if w    else 4
+        self.action_vector_size =      wandb_config.action_vector_size if w else 4
+        self.hidden_neurons =          wandb_config.hidden_neurons if w     else 8
+        self.it_b4_dest =              wandb_config.it_b4_dest if w         else 4
+        self.it_aft_dest =             wandb_config.it_aft_dest if w        else 4
+        self.normalize =               wandb_config.normalize if w          else True#False
+        self.log_std_init =            wandb_config.log_std_init if w       else -1#-2
+
+        self.reward_per_step =         wandb_config.reward_per_step if w    else -.05
         self.reward_reached_dest =     wandb_config.reward_reached_dest if w    else 1
         self.reward_step_closer =      wandb_config.reward_step_closer if w else .1
 
@@ -36,12 +37,12 @@ class ConfigParams:
 
         self.n_envs =                  8
         self.batch_size = wandb_config.batch_size if w else 16
-        n_steps = wandb_config.n_steps if w else 48
+        n_steps = wandb_config.n_steps if w else 128
         self.n_steps = n_steps + self.batch_size - (n_steps % self.batch_size) # such that batch_size is a factor of n_steps
-        self.total_steps = self.n_steps * self.n_envs * self.batch_size * 128
+        self.total_steps = self.n_steps * self.n_envs * self.batch_size
 
-        self.n_lin_extr =      wandb_config.n_lin_extr if w else 3
-        self.n_lin_policy =    wandb_config.n_lin_policy if w else 1
+        self.n_lin_extr =      wandb_config.n_lin_extr if w else 0
+        self.n_lin_policy =    wandb_config.n_lin_policy if w else 0
         self.n_lin_value =      wandb_config.n_lin_value if w else 2
 
         self.range_inputvec = wandb_config.range_inputvec if w else .02
@@ -49,11 +50,11 @@ class ConfigParams:
         self.env = env
         self.policy = ppo_policy
 
-        activation_str =               wandb_config.activation if w         else "None"
-        activations = {"tanh": torch.tanh, "relu": torch.relu, "None": nn.Identity()}
+        activation_str =               wandb_config.activation if w         else "tanh"
+        activations = {"tanh": torch.tanh, "relu": torch.relu, "none": nn.Identity()}
         self.activation = activations[activation_str]
 
-        conv_str =                     wandb_config.conv if w               else "GCNConv"#"GCNConv"
+        conv_str =                     wandb_config.conv if w               else "GCNConv"#
         convs = {"GCNConv": GCNConv, "SAGEConv": SAGEConv, "GraphConv": GraphConv,
                  "GATConv": GATConv, "GATv2Conv": GATv2Conv}
         self.conv = convs[conv_str]

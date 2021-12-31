@@ -30,6 +30,7 @@ def train():
         model.set_logger(logger=logger)
         callback = callbacks.get_callbacks(envs=eval_envs, use_wandb=USE_WANDB, config=config)
         model.learn(config.total_steps, callback=callback)
+        model.save("models/v0")
 
     if USE_WANDB:
         with wandb.init(save_code=False) as run:
@@ -48,8 +49,12 @@ def train():
                 for st in stack_trace:
                     print(st)
                 raise e
+
+
     else:
         _train()
+
+
 
 
 VERBOSE = 1

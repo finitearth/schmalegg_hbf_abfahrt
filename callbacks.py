@@ -115,17 +115,21 @@ class RenderCallback(BaseCallback):
                 d, im = utils.draw_arrow(im, (point_map[s_][0] - 50, point_map[s_][1]),
                                          (point_map[s_][0] - 50 + p0, point_map[s_][1] + p1), color=(0, 0, 255),
                                          thickness=3)
+                p0, p1 = int(s.vector[2] * 50), int(s.vector[3] * 50)
+                d, im = utils.draw_arrow(im, (point_map[s_][0] - 100, point_map[s_][1]),
+                                         (point_map[s_][0] - 100 + p0, point_map[s_][1] + p1), color=(255, 0, 0),
+                                         thickness=3)
             if s.passengers:
                 d, im = utils.draw_arrow(im, point_map[s_], (point_map[s_][0], point_map[s_][1] + 25))
                 for i, p in enumerate(s.passengers, start=2):
-                    d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Station -> {p.destination}", fill=black)
+                    d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Station -> {int(p.destination)}", fill=black)
 
         for t in trains:
             if t.passengers:
                 s_ = int(t.station)
                 d, im = utils.draw_arrow(im, point_map[s_], (point_map[s_][0], point_map[s_][1]+25))
                 for i, p in enumerate(t.passengers, start=2):
-                    d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Train -> {p.destination}", fill=black)
+                    d.text((point_map[s_][0]-50, point_map[s_][1]+i*12), f"In Train -> {int(p.destination)}", fill=black)
         im = im.convert('RGB')
         self.frames.append(np.array(im))
         plt.close()

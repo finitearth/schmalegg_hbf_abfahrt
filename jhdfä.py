@@ -1,9 +1,11 @@
-class Test:
-    def __eq__(self, other):
-        return True
+import torch.nn.functional as F
+import torch
+starts = torch.zeros(1, 4, 4, 2)
+n_stations = 4
+actions = torch.tensor([[[1, 2, 3], [1, 1, 1]]])
+start_vecs = torch.rand(starts.shape[0], starts.shape[1], 2)
 
-a = Test()
-b = Test()
+starts = start_vecs[:, actions[:, 0, :]]
 
-c = [a, b]
-print(a in c)
+
+print(starts)

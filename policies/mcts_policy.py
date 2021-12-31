@@ -5,7 +5,6 @@ from gym.core import Wrapper
 from dill import dumps, loads
 from math import log, sqrt
 from itertools import product as cart_product
-from tqdm import tqdm
 import objects
 
 
@@ -18,20 +17,22 @@ def something(observation, env, ppo_model):
     plan_mcts(root)
 
 
-def plan_mcts(root, n_iters=10):
+def plan_mcts(root, n_iters=4):
     """
     builds tree with monte-carlo tree search for n_iters iterations
     :param root: tree node to plan from
     :param n_iters: how many select-expand-simulate-propagete loops to make
     """
-    for _ in tqdm(range(n_iters)):
+    for _ in (range(n_iters)):
         node = root.select_best_leaf()
         if node.is_done:
             node.propagate(0)
         else:
-            node.expand()
+            node = node.expand()
             reward = node.rollout()
             node.propagate(reward)
+
+    print(":)")
 
 
 class MCTSEnv(Wrapper):
@@ -99,11 +100,9 @@ class Node:
         self.action = action
         self.env = env
         self.snapshot = snapshot
-        if self in self.env.nodes:
-            self.is_done = True
-            self.immediate_reward = -100
-        else:
-            self.env.nodes.add(self)
+        res = env.get_result(parent.snapshot, action)
+        self.snapshot, self.observation, self.immediate_reward, self.is_done, _ = res
+
 
         self.ppo_model = ppo_model
         self.children = set()
@@ -118,7 +117,7 @@ class Node:
     def get_qvalue_estimate(self):
         return self.qvalue_sum / self.times_visited if self.times_visited != 0 else 0
 
-    def ucb_score(self, scale=10, max_value=1e100):
+    def get_ucb_score(self, scale=10, max_value=1e100):
         if self.times_visited == 0:
             return max_value
 
@@ -128,16 +127,16 @@ class Node:
     def select_best_leaf(self):
         if self.is_leaf():
             return self
-        children = self.children
-        best_child = sorted(list(children), key=lambda x: x.ucb_score())[0]
-
+        children = list(self.children)
+        best_id = np.argmax([c.get_ucb_score() for c in self.children])
+        best_child = children[best_id]
         return best_child.select_best_leaf()
 
     def expand(self):
         assert not self.is_done, "can't expand from terminal state"
         actions = self.env.get_possible_mcts_actions()
         snapshot = self.env.get_snapshot()
-        for action in actions:
+        for action in list(actions):
             node = Node(self, action, self.env, snapshot, self.ppo_model)
             self.children.add(node)
 
@@ -151,7 +150,7 @@ class Node:
             return rollout_reward
         snapshot = self.env.get_snapshot()
         for _ in range(t_max):
-            mcts_action = random.choice(list(self.env.get_possible_mcts_actions()))
+            mcts_action = next(self.env.get_possible_mcts_actions())
             snapshot, _, reward, is_done, _ = self.env.get_result(snapshot, mcts_action)
             rollout_reward += reward
             if is_done: break
@@ -159,8 +158,8 @@ class Node:
         return rollout_reward
 
     def propagate(self, child_qvalue):
-        res = self.env.get_result(self.parent.snapshot, self.action)
-        self.snapshot, self.observation, self.immediate_reward, self.is_done, _ = res
+        # res = self.env.get_result(self.snapshot, self.action)
+        # _, self.observation, self.immediate_reward, self.is_done, _ = res
         qvalue = self.immediate_reward + child_qvalue
 
         self.qvalue_sum += qvalue

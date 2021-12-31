@@ -1,3 +1,4 @@
+from functools import partial
 from time import sleep
 
 import numpy as np
@@ -6,8 +7,8 @@ import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.distributions import make_proba_distribution, StateDependentNoiseDistribution, \
     DiagGaussianDistribution
-from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv, global_mean_pool, global_add_pool, GCNConv
-from torch.nn import Linear
+from torch_geometric.nn import SAGEConv, GATv2Conv, TransformerConv, global_mean_pool, global_add_pool, GCNConv, \
+    BatchNorm, Linear
 from stable_baselines3.common.policies import ActorCriticPolicy
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from torch_geometric.data import Data, HeteroData
@@ -49,8 +50,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
 
         self.features_dim = self.features_extractor.features_dim
         self.log_std_init = config.log_std_init
-        cls = StateDependentNoiseDistribution if use_sde else DiagGaussianDistribution
-        self.action_dist = cls(int(np.prod(action_space.shape)))
+        self.action_dist = DiagGaussianDistribution(int(np.prod(action_space.shape)))
         self._build(lr_schedule)
 
     def _build(self, lr_schedule):
@@ -61,7 +61,19 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
         _, self.log_std = self.action_dist.proba_distribution_net(latent_dim=latent_dim_pi,
                                                                   log_std_init=self.log_std_init)
-        self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
+        # self.optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
+        if self.ortho_init:
+            module_gains = {
+                self.features_extractor: np.sqrt(2),
+                self.mlp_extractor: np.sqrt(2),
+                self.policy_net: 0.01,
+                self.value_net: 1,
+            }
+            for module, gain in module_gains.items():
+                module.apply(partial(self.init_weights, gain=gain))
+
+        # Setup optimizer with initial learning rate
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
 
     def forward(self, obs: torch.Tensor, deterministic: bool = False, use_sde=False) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -98,10 +110,11 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         data = self._convert_observation(obs)
-        latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
-        values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations, data.batch)
-        latent, _ = to_dense_batch(latent, data.batch)
-        mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
+        with torch.no_grad():
+            latent = self.mlp_extractor(data.x, data.edge_index_connections, data.edge_index_destinations)
+            values = self.value_net(latent, data.edge_index_connections, data.edge_index_destinations, data.batch)
+            latent, _ = to_dense_batch(latent, data.batch)
+            mean_actions = self.policy_net(latent, data.edge_index_connections, data.edge_index_destinations)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
@@ -141,7 +154,6 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             datas.append(data)
 
         data_loader = DataLoader(datas, batch_size=n_batches, shuffle=False)
-
         return next(iter(data_loader))
 
 
@@ -165,23 +177,19 @@ class Extractor(nn.Module):
 
     def forward(self, x, edge_index_connections, edge_index_destinations, use_sde=False):
         x = self.conv1(x, edge_index_connections)
-        x = x_0 = self.activation(x)
+        x =  self.activation(x)
         for _ in range(self.config.it_b4_dest):
             x = self.conv2(x, edge_index_connections)
-            x = self.activation(x)
-        x = x_0 + x
+            x = self.activation(x)#
         x = self.conv3(x, edge_index_destinations)
-        x_0 = x = self.activation(x)
+        x = self.activation(x)
 
         for _ in range(self.config.it_aft_dest):
             x = self.conv4(x, edge_index_connections)
             x = self.activation(x)
-        x = x_0 + x
 
-        x_0 = x
         for lin in self.lin_layers:
             x = lin(x)
-        x = x_0 + x
 
         return x
 
@@ -202,13 +210,16 @@ class PolicyNet(nn.Module):
 class ValueNet(nn.Module):
     def __init__(self, hidden_neurons, config):
         super(ValueNet, self).__init__()
-        self.lins = [Linear(hidden_neurons*2, hidden_neurons*2) for _ in range(config.n_lin_value)]
-        self.lin1 = Linear(hidden_neurons * 2, 1)
+        self.lins = [Linear(hidden_neurons, hidden_neurons) for _ in range(config.n_lin_value)]
+        self.lin1 = Linear(hidden_neurons, 1)
+        # self.bn = BatchNorm(hidden_neurons)
+        # self.relu = nn.ReLU()
 
     def forward(self, x, edge_index_connections, edge_index_destinations, batch):
-        x1 = global_add_pool(x, batch)
-        x2 = global_mean_pool(x, batch)
-        x = torch.cat((x1, x2), dim=1)
+        x = global_add_pool(x, batch)
+        # x = self.bn(x)
+        # x = global_mean_pool(x, batch)
+        # x = torch.cat((x1, x2), dim=1)
         for lin in self.lins:
             x = lin(x)
         x = self.lin1(x)

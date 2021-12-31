@@ -40,6 +40,7 @@ class AbfahrtEnv(gym.Env):
         self.step_count = 0 # help me stepcount, im stuck!
 
     def step(self, action):
+        n = self.config.action_vector_size//2
         if self.using_mcts:
             ppo_action = action[0]
             mcts_action = action[1]
@@ -58,7 +59,7 @@ class AbfahrtEnv(gym.Env):
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
-                dot_products = [train.station.vector @ p.destination.vector for p in train.station.passengers]
+                dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
                 idx = np.argmax(dot_products)
 
                 if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
@@ -77,11 +78,12 @@ class AbfahrtEnv(gym.Env):
         done = bool(active_passengers == 0)
         if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
             done = True
-            reward = -100
+            reward = -5
 
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):
+        n = self.config.action_vector_size // 2
         if self.using_mcts:
             for (train, station) in mcts_action:
                 train = self.trains_dict[int(train)]
@@ -90,39 +92,35 @@ class AbfahrtEnv(gym.Env):
         else:
             for train in self.trains:
                 train_vector = train.station.vector
-                next_stop_idx = np.argmax([train_vector @ s.vector for s in train.station.reachable_stops])
+                next_stop_idx = np.argmax([train_vector[n:] @ s.vector[:n] for s in train.station.reachable_stops])
                 train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
     def _min_steps_to_go(self):
-        sd = []
+        c = 0
         for st in self.trains + self.stations:
             s = st.destination if isinstance(st, objects.Train) else st
             for p in st.passengers:
-                a = int(s)
-                b = int(p.destination)
-                sd.append((a, b))
-        c = sum([self.shortest_path_lenghts[s][d] for s, d in sd])
+                c += self.shortest_path_lenghts[int(s)][int(p.destination)]
         return c
 
     def reset(self):
-        if self.resets % self.config.batch_size == 0 and self.mode != "inference":
-            for _ in range(self.config.batch_size*4):
+        if self.resets % (self.config.batch_size + len(self.eval_envs))*8 == 0 and self.mode != "inference":
+            for _ in range(self.config.batch_size):
                 env = EnvBlueprint()
                 env.random(n_max_stations=30)
                 self.train_envs.append(env)
 
         if self.mode == "train":
             n_envs = len(self.train_envs) - 1
-            env_idx = int(min(1, abs(np.random.normal(loc=0, scale=0.5)))*n_envs)
+            env_idx = int(min(1, abs(np.random.normal(loc=0, scale=5)))*n_envs)
             self.routes, self.stations, self.trains = self.train_envs[env_idx].get()
         elif self.mode == "eval":
             self.routes, self.stations, self.trains = self.eval_envs[self.resets % len(self.eval_envs)].get()
-            self.resets += 1
         elif self.mode == "render":
             self.routes, self.stations, self.trains = self.eval_envs[0].get()
         elif self.mode == "inference":
             self.routes, self.stations, self.trains = self.inference_env_bp.get()
-
+        self.resets += 1
         for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features, config=self.config)
         self.trains_dict = {int(t): t for t in self.trains}
         self.stations_dict = {int(s): s for s in self.stations}
