@@ -9,11 +9,11 @@ import random
 from itertools import product as cart_product
 import utils
 from objects import Routes, Station, PassengerGroup, Train
-
 n_simulations = 10
 n_steps = 10
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class Trainer:
     def __init__(self, env, value_net, policy_net, get_ppo_action, config):
@@ -21,7 +21,8 @@ class Trainer:
         self.value_net = value_net
         self.policy_net = policy_net
         self.config = config
-        self.mcts = MCTS(env, value_net, policy_net, self.config, get_ppo_action)
+        self.mcts = MCTS(env, value_net, policy_net,
+                         self.config, get_ppo_action)
         self.train_examples_history = []
 
     def predict(self, snapshot, observation):
@@ -40,7 +41,8 @@ class Trainer:
 
         root = self.mcts.run(root)
         mcts_action = root.select_best_leaf().action
-        next_snapshot, observation, reward, done, _ = self.env.get_result(root.snapshot, mcts_action)
+        next_snapshot, observation, reward, done, _ = self.env.get_result(
+            root.snapshot, mcts_action)
         train_examples.append(([observation], root.action_probs))
 
         return train_examples
@@ -56,13 +58,16 @@ class Trainer:
             self.train(train_examples)
 
     def train(self, examples):
-        pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
-        v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
+        pi_optim = torch.optim.Adam(
+            self.policy_net.parameters(), lr=self.config.lr_pi)
+        v_optim = torch.optim.Adam(
+            self.value_net.parameters(), lr=self.config.lr_v)
 
         for epoch in range(self.config.n_epochs):
             batch_idx = 0
             while batch_idx < len(examples) // self.config.batch_size:
-                sample_ids = np.random.randint(len(examples), size=self.config.batch_size)
+                sample_ids = np.random.randint(
+                    len(examples), size=self.config.batch_size)
                 observation, pis, vs = zip(*[examples[i] for i in sample_ids])
                 target_pis = torch.FloatTensor(pis)
                 target_vs = torch.FloatTensor(vs)
@@ -77,9 +82,6 @@ class Trainer:
                 l_v = nn.MSELoss()(pred_vs, target_vs)
                 l_v.backward()
                 v_optim.step()
-
-
-
 
 
 class MCTS:
@@ -102,18 +104,20 @@ class MCTS:
         for _ in range(n_simulations):
             node = root.select_best_leaf()
             search_path = [node]
-            #for _ in range(n_steps):
-                # node = node.select_best_leaf()
-                # action = node.action
-                # search_path.append(node)
+            # for _ in range(n_steps):
+            # node = node.select_best_leaf()
+            # action = node.action
+            # search_path.append(node)
 
             parent = node.parent
             action = node.action
-            next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
+            next_snapshot, obs, reward, done, info = self.env.get_result(
+                parent.snapshot, action)
             # next actions
             self.env.load_snapshot(next_snapshot)
             actions = self.env.get_possible_mcts_actions()
-            input, eic, eid, eit, batch = utils.convert_observation(obs, self.config)
+            input, eic, eid, eit, batch = utils.convert_observation(
+                obs, self.config)
             action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
             value = self.value_net(input, eic, eid, eit, batch)
             node.value = value
@@ -126,7 +130,8 @@ class MCTS:
 
     @staticmethod
     def backpropagate(search_path, value):
-        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
+        if isinstance(value, torch.Tensor):
+            value = value.cpu().detach().numpy()
         for node in reversed(search_path):
             node.value_sum += value
             node.visit_count += 1
@@ -138,44 +143,47 @@ class MCTSWrapper(Wrapper):
 
     def get_snapshot(self):
 
-            text = {
-                "name": self.name,
-                "stations": [{"name": station.name, "capacity": station.capacity} for station in self.stations],
-                "routes": [route for route in self.routes],
-                "passengers": [{"destination": str(passenger.destination),
-                                "n_people": passenger.n_people,
-                                "target_time": passenger.target_time,
-                                "start_station": str(passenger.start_station)}
-                               for passenger in self.passengers],
-                "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
-            return text
+        text = {
+            "name": self.name,
+            "stations": [{"name": station.name, "capacity": station.capacity} for station in self.stations],
+            "routes": [route for route in self.routes],
+            "passengers": [{"destination": str(passenger.destination),
+                            "n_people": passenger.n_people,
+                            "target_time": passenger.target_time,
+                            "start_station": str(passenger.start_station)}
+                           for passenger in self.passengers],
+            "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
+        return text
     def load_snapshot(self, snapshot):
         env_dict = snapshot
 
         routes = Routes()
 
+
         stations_dict = {}
         for station in env_dict["stations"]:
-            stations_dict[str(station["name"])] = Station(station["capacity"], station["name"])
-        stations_list = [s for s in stations_dict.values()]
+            stations_dict[str(station["name"])] = Station(
+            station["capacity"], station["name"])
+            stations_list = [s for s in stations_dict.values()]
 
         for route in env_dict["routes"]:
             routes.add(
-                stations_dict[str(route[0])], stations_dict[str(route[1])]
+            stations_dict[str(route[0])], stations_dict[str(route[1])]
             )
 
         passengers = []
         for passenger in env_dict["passengers"]:
             pg = PassengerGroup(stations_dict[str(passenger["destination"])],
-                                passenger["n_people"],
-                                passenger["target_time"])
+                            passenger["n_people"],
+                            passenger["target_time"])
             passengers.append(pg)
             station = stations_dict[str(passenger["start_station"])]
             station.passengers.append(pg)
 
         trains = []
         for i, train in enumerate(env_dict["trains"]):
-            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
+            trains.append(
+            Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
 
         # self.name = env_dict["name"]
         self.env.passengers = passengers
@@ -183,25 +191,35 @@ class MCTSWrapper(Wrapper):
         self.env.trains = trains
         self.env.stations = stations_list
 
-    def step(self, mcts_action):
-        return self.env.step(mcts_action)
 
-    def get_result(self, snapshot, mcts_action):
-        self.load_snapshot(snapshot)
+        def step(self, mcts_action):
 
-        observation, reward, done, info = self.step(mcts_action)
-        next_snapshot = self.get_snapshot()
 
-        return next_snapshot, observation, reward, done, info
+            return self.env.step(mcts_action)
 
-    def get_possible_mcts_actions(self):
-        # trains_start = [int(t.station) for t in self.env.trains]
-        # g = self.env.graph
-        actions = [[(int(t), int(d)) for d in t.station.reachable_stops] for t in self.env.trains]
-        actions = list(cart_product(*actions))
-        actions = torch.tensor(actions).to(device)
-        # actions = actions.swapaxes(1, 0)
-        return actions
+
+        def get_result(self, snapshot, mcts_action):
+
+
+            self.load_snapshot(snapshot)
+
+            observation, reward, done, info = self.step(mcts_action)
+            next_snapshot = self.get_snapshot()
+
+            return next_snapshot, observation, reward, done, info
+
+
+        def get_possible_mcts_actions(self):
+
+
+            # trains_start = [int(t.station) for t in self.env.trains]
+            # g = self.env.graph
+            actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
+                for t in self.env.trains]
+            actions = list(cart_product(*actions))
+            actions = torch.tensor(actions)
+            # actions = actions.swapaxes(1, 0)
+            return actions
 
 
 class PolicyNet(nn.Module):
@@ -209,12 +227,18 @@ class PolicyNet(nn.Module):
         super(PolicyNet, self).__init__()
         hidden_neurons = config.hidden_neurons
         convclass = config.conv
-        self.conv1 = convclass(config.n_node_features, config.hidden_neurons, aggr=config.aggr_con)
-        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_dest)
-        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(config.n_lin_policy)]
+        self.conv1 = convclass(config.n_node_features,
+                               config.hidden_neurons, aggr=config.aggr_con)
+        self.conv2 = convclass(config.hidden_neurons,
+                               config.hidden_neurons, aggr=config.aggr_con)
+        self.conv3 = convclass(config.hidden_neurons,
+                               config.hidden_neurons, aggr=config.aggr_dest)
+        self.conv4 = convclass(config.hidden_neurons,
+                               config.hidden_neurons, aggr=config.aggr_con)
+        self.conv5 = convclass(config.hidden_neurons,
+                               config.hidden_neurons, aggr=config.aggr_con)
+        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device)
+                     for _ in range(config.n_lin_policy)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
         self.softmax = nn.Softmax(dim=1)
         self.config = config
@@ -247,18 +271,19 @@ class PolicyNet(nn.Module):
             x = lin(x)
         x = self.lin1(x)
 
-        dest_vecs = x[:, :, self.n:]#x[:, self.n:]#
-        start_vecs = x[:, :, :self.n] #x[:, :self.n]#
+        dest_vecs = x[:, :, self.n:]  # x[:, self.n:]#
+        start_vecs = x[:, :, :self.n]  # x[:, :self.n]#
 
         return start_vecs, dest_vecs
 
     def get_prob(self, actions, start_vecs, dest_vecs):
-        starts = start_vecs[:, actions[:, :, :, 0].flatten()] # batches, action, stations, bool_starting
+        # batches, action, stations, bool_starting
+        starts = start_vecs[:, actions[:, :, :, 0].flatten()]
         dests = dest_vecs[:, actions[:, :, :, 1].flatten()]
-        probs = torch.einsum('bij,bij->bi', starts, dests).to(device) # Einstein Summation :)
+        # Einstein Summation :)
+        probs = torch.einsum('bij,bij->bi', starts, dests).to(device)
         probs = self.softmax(probs)
         return probs
-
 
 
 class Node:
@@ -270,7 +295,8 @@ class Node:
         self.parent = parent
         self.action = action
         self.snapshot = snapshot
-        self.prior = prior if isinstance(prior, np.ndarray) else prior.cpu().detach().numpy()
+        self.prior = prior if isinstance(
+            prior, np.ndarray) else prior.cpu().detach().numpy()
         self.children = set()
         self.visit_count = 0
         self.value_sum = 0
@@ -286,13 +312,16 @@ class Node:
     #     return self.q_predicted / self.times_visited if self.times_visited != 0 else 0
 
     def get_ucb_score(self):
-        prior_score = self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
+        prior_score = self.prior * \
+            math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
         return prior_score + self.value_sum
 
     def select_best_leaf(self):
-        if self.is_leaf(): return self
+        if self.is_leaf():
+            return self
         children = list(self.children)
-        best_child = max([(c, c.get_ucb_score()) for c in self.children], key=lambda x: x[1])[0]
+        best_child = max([(c, c.get_ucb_score())
+                         for c in self.children], key=lambda x: x[1])[0]
         return best_child.select_best_leaf()
 
     def expand(self, actions, priors):
