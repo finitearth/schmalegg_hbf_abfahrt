@@ -6,6 +6,7 @@ import numpy as np
 import json
 from matplotlib import pyplot as plt
 from networkx import fast_gnp_random_graph
+from dill import loads, dumps
 
 
 class EnvBlueprint:
@@ -121,16 +122,18 @@ class EnvBlueprint:
             json.dump(text, f)
 
     def get(self):
-        stations = [Station(s.capacity, s.name) for s in self.stations]
-        for sc, so in zip(stations, self.stations):
-            sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in
-                             so.passengers]
-            sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
-            sc.input_vector = so.input_vector
-
-        trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
-
-        return self.routes, stations, trains
+        # stations = [Station(s.capacity, i) for i, s in enumerate(self.stations)]
+        # for sc, so in zip(stations, self.stations):
+        #     sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in
+        #                      so.passengers]
+        #     sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
+        #     sc.input_vector = so.input_vector
+        #
+        # trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
+        # self.graph = nx.Graph()
+        # for s1, s2 in zip(self.routes[0], self.routes[1]):
+        #     self.graph.add_edge(s1, s2)
+        return loads(dumps((self.routes, self.stations, self.trains)))#, stations, trains
 
     def random(self, n_max_stations):
         n_station = int(max(7, n_max_stations * random.random()))
@@ -152,7 +155,7 @@ class EnvBlueprint:
             routes.add(stations[e[0]], stations[e[1]])
         self.routes = routes.get_all_routes()
 
-        n_passenger_group_max = 20
+        n_passenger_group_max = 1
         n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
         for _ in range(n_passenger_group):
             station = random.choice(stations)
@@ -188,7 +191,7 @@ class EnvBlueprint:
 
 
 class Station:
-    def __init__(self, capacity, name=-1, n_node_features=4):
+    def __init__(self, capacity, name=-1):
         self.name = name
         self.capacity = capacity
         self.passengers = []
@@ -200,14 +203,14 @@ class Station:
         self.input_vector = np.ones(n_node_features) * (1 - config.range_inputvec) \
                           + np.random.rand(n_node_features) * config.range_inputvec * 2
 
-    def getencoding(self):
+    def get_encoding(self):
         return self.input_vector
 
     def __int__(self):
         return int(self.name)
 
     def __eq__(self, other):
-        return self.name == other.name
+        return int(self) == int(other)
 
     # def __repr__(self):
     #     return str(int(self))
@@ -256,6 +259,14 @@ class Train:
         self.capacity = capacity
         self.passengers = []
         self.name = name
+        self.input_vector = None
+
+    def set_input_vector(self, n_node_features, config):
+        self.input_vector = np.ones(n_node_features) * (1 - config.range_inputvec) \
+                        + np.random.rand(n_node_features) * config.range_inputvec * 2
+
+    def get_encoding(self):
+        return self.input_vector
 
     def reached_next_stop(self):
         if self.destination is not None:
@@ -273,6 +284,7 @@ class Train:
         if not passenger_group.reached_destination(self.station):
             passenger_group.current_station = self.station
             self.station.passengers.append(passenger_group)
+        # else: print("reached :) ")
 
     def reroute_to(self, destination):
         assert isinstance(destination, Station), f"{destination} is not of type Station"

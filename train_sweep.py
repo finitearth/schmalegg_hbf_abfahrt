@@ -16,20 +16,20 @@ def train():
 
         train_env = AbfahrtEnv(config=config, mode="train")
         train_env.reset()
-        multi_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
-        multi_env = VecNormalize(multi_env, norm_obs=False, gamma=config.gamma)
+        train_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
+        train_env = VecNormalize(train_env, norm_obs=False, gamma=config.gamma)
 
         eval_envs = AbfahrtEnv(config=config, mode="eval")
         eval_envs.reset()
         eval_envs = make_vec_env(lambda: eval_envs, n_envs=1)
         eval_envs = VecNormalize(eval_envs, norm_obs=False, gamma=config.gamma, training=False)
 
-        model = config.policy.get_model(multi_env, config)
+        model = config.policy.get_model(train_env, config)
         logger = utils.CustomLogger(USE_WANDB)
         logger.level = 10
         model.set_logger(logger=logger)
         callback = callbacks.get_callbacks(envs=eval_envs, use_wandb=USE_WANDB, config=config)
-        model.learn(config.total_steps, callback=callback)
+        model.learn(config.total_steps, callback=callback, eval_freq=10)
         model.save("models/v0")
 
     if USE_WANDB:
