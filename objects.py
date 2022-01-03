@@ -47,7 +47,7 @@ class EnvBlueprint:
         for l in single_lines:
             if l == "" or l == " ": continue
             ll = l.split(" ")
-            routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
+            routes.add( stations_dict[ll[1]], stations_dict[ll[2]], stations_dict[ll[0]], stations_dict[ll][3], stations_dict[ll][4])
 
         single_trains = trains_text.split('\n')
         train_list = []
@@ -221,7 +221,10 @@ class Routes:
         self.station1s = []
         self.station2s = []
 
-    def add(self, station1, station2):
+    def add(self, station1, station2, id, capacity, length):
+        self.id = id
+        self.capacity = capacity
+        self.length = length
         assert isinstance(station1, Station), f"{station1} is not of type Station"
         assert isinstance(station2, Station), f"{station2} is not of type Station"
         if station1 == station2 or station1 in station2.reachable_stops: return
@@ -251,9 +254,9 @@ class PassengerGroup:
 
 
 class Train:
-    def __init__(self, station, capacity, name):
+    def __init__(self, station, capacity, name, speed):
         assert isinstance(station, Station), f"{station} is not of type Station"
-        self.speed = 1
+        self.speed = 1 #speed 
         self.station = station
         self.destination = None
         self.capacity = capacity
