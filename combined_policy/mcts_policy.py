@@ -7,12 +7,12 @@ from torch_geometric.nn import Linear
 import math
 import random
 from itertools import product as cart_product
-
 import utils
 
 n_simulations = 10
 n_steps = 10
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Trainer:
     def __init__(self, env, value_net, policy_net, get_ppo_action, config):
@@ -99,15 +99,15 @@ class MCTS:
         root.expand(actions, action_probs)
 
         for _ in range(n_simulations):
-            node = root
+            node = root.select_best_leaf()
             search_path = [node]
-            for _ in range(n_steps):
-                node = node.select_best_leaf()
-                action = node.action
-                search_path.append(node)
+            #for _ in range(n_steps):
+                # node = node.select_best_leaf()
+                # action = node.action
+                # search_path.append(node)
 
-            parent = search_path[-2]
-
+            parent = node.parent
+            action = node.action
             next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
             # next actions
             self.env.load_snapshot(next_snapshot)
@@ -125,7 +125,7 @@ class MCTS:
 
     @staticmethod
     def backpropagate(search_path, value):
-        if isinstance(value, torch.Tensor): value = value.detach().numpy()
+        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
         for node in reversed(search_path):
             node.value_sum += value
             node.visit_count += 1
@@ -157,7 +157,7 @@ class MCTSWrapper(Wrapper):
         # g = self.env.graph
         actions = [[(int(t), int(d)) for d in t.station.reachable_stops] for t in self.env.trains]
         actions = list(cart_product(*actions))
-        actions = torch.tensor(actions)
+        actions = torch.tensor(actions).to(device)
         # actions = actions.swapaxes(1, 0)
         return actions
 
@@ -172,7 +172,7 @@ class PolicyNet(nn.Module):
         self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_dest)
         self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
         self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.lins = [Linear(hidden_neurons, hidden_neurons) for _ in range(config.n_lin_policy)]
+        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(config.n_lin_policy)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
         self.softmax = nn.Softmax(dim=1)
         self.config = config
@@ -213,7 +213,7 @@ class PolicyNet(nn.Module):
     def get_prob(self, actions, start_vecs, dest_vecs):
         starts = start_vecs[:, actions[:, :, :, 0].flatten()] # batches, action, stations, bool_starting
         dests = dest_vecs[:, actions[:, :, :, 1].flatten()]
-        probs = torch.einsum('bij,bij->bi', starts, dests) # Einstein Summation :)
+        probs = torch.einsum('bij,bij->bi', starts, dests).to(device) # Einstein Summation :)
         probs = self.softmax(probs)
         return probs
 
@@ -228,7 +228,7 @@ class Node:
         self.parent = parent
         self.action = action
         self.snapshot = snapshot
-        self.prior = prior if isinstance(prior, np.ndarray) else prior.detach().numpy()
+        self.prior = prior if isinstance(prior, np.ndarray) else prior.cpu().detach().numpy()
         self.children = set()
         self.visit_count = 0
         self.value_sum = 0

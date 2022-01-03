@@ -15,13 +15,13 @@ from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GATv2Conv, GraphConv,
 import env
 from policies import ppo_policy
 
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class ConfigParams:
     def __init__(self, wandb_config=None):
         self.lr_pi = 10**-5
         self.lr_v = 10**-5
         self.n_iters = 4
-        self.n_eps = 4
+        self.n_eps = 1
         self.n_epochs = 4
         w = wandb_config is not None
         self.vf_coef =                 wandb_config.vf_coef if w            else .5
@@ -106,6 +106,7 @@ def draw_arrow(im, p0, p1, thickness=1, color=(0, 0, 0)):
     return ImageDraw.Draw(im), im
 
 
+
 def convert_observation(obs, config):
     if isinstance(obs, np.ndarray): obs = torch.from_numpy(obs)
     if len(obs.shape) < 2: obs = obs.unsqueeze(0)
@@ -142,7 +143,7 @@ def convert_observation(obs, config):
     data_loader = DataLoader(datas, batch_size=n_batches, shuffle=False)
     b = next(iter(data_loader))
 
-    return b.x, b.edge_index_connections, b.edge_index_destinations, b.edge_index_trains, b.batch
+    return b.x.to(device), b.edge_index_connections.to(device), b.edge_index_destinations.to(device), b.edge_index_trains.to(device), b.batch.to(device)
 
 
 class CustomData(Data):

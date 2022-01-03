@@ -11,10 +11,9 @@ from torch_geometric.nn.dense import Linear
 from torch_geometric.utils import add_self_loops, to_dense_batch
 
 import utils
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def get_model(multi_env, value_net, config):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     pol = CustomActorCriticPolicy
     model = PPO(
         pol,
@@ -62,9 +61,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         values = self.value_net(x, eic, eid, eit, batch)
         mean_actions = self.policy_net(x, eic, eid, eit, batch)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
-        mean_actions = torch.hstack((mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1])))
+        mean_actions = torch.hstack((mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(device))).to(device)
         if torch.isnan(self.log_std).any():
-            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
+            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float).to(device)
             self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
@@ -73,7 +72,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         return actions, values, log_probs
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
-        if isinstance(observation, np.ndarray): observation = torch.Tensor(observation)
+        if isinstance(observation, np.ndarray): observation = torch.Tensor(observation).to(self.device)
         action, _, _ = self.forward(observation, deterministic)
         action = action.cpu().detach().numpy()
         return action, state
@@ -108,7 +107,7 @@ class PolicyNet(nn.Module):
         self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_dest)
         self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
         self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.lins = [Linear(hidden_neurons, hidden_neurons) for _ in range(config.n_lin_policy)]
+        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(config.n_lin_policy)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
 
     def forward(self, x, edge_index_connections, edge_index_destinations, edge_index_trains, batch):
