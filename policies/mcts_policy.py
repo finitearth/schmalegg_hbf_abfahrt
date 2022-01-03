@@ -39,7 +39,6 @@ class MCTSEnv(Wrapper):
     def __init__(self, env, ppo_model):
         super().__init__(env)
         self.ppo_model = ppo_model
-        self.nodes = set()
 
     def get_snapshot(self):
         return dumps(self.env)
