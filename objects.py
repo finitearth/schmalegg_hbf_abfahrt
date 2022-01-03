@@ -71,9 +71,12 @@ class EnvBlueprint:
         self.trains = train_list
         self.stations = station_list
 
-    def read_json(self, file):
-        with open(file, "r") as f:
-            env_dict = json.load(f)
+    def read_json(self, file=None, text=None):
+        if file is not None:
+            with open(file, "r") as f:
+                env_dict = json.load(f)
+        else:
+            env_dict = json.load(text)
 
         routes = Routes()
 
@@ -106,7 +109,7 @@ class EnvBlueprint:
         self.trains = trains
         self.stations = stations_list
 
-    def save(self):
+    def save(self, save_to_disk=True):
         text = {
             "name": self.name,
             "stations": [{"name": station.name, "capacity": station.capacity} for station in self.stations],
@@ -117,9 +120,10 @@ class EnvBlueprint:
                             "start_station": str(passenger.start_station)}
                            for passenger in self.passengers],
             "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
-
-        with open(self.name + ".json", "w") as f:
-            json.dump(text, f)
+        if save_to_disk:
+            with open(self.name + ".json", "w") as f:
+                json.dump(text, f)
+        else: return text
 
     def get(self):
         # stations = [Station(s.capacity, i) for i, s in enumerate(self.stations)]

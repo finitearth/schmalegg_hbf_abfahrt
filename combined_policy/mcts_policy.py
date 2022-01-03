@@ -9,6 +9,7 @@ import random
 from itertools import product as cart_product
 
 import utils
+from objects import Routes, Station, PassengerGroup, Train
 
 n_simulations = 10
 n_steps = 10
@@ -136,10 +137,51 @@ class MCTSWrapper(Wrapper):
         super().__init__(env)
 
     def get_snapshot(self):
-        return dumps(self.env)
 
+            text = {
+                "name": self.name,
+                "stations": [{"name": station.name, "capacity": station.capacity} for station in self.stations],
+                "routes": [route for route in self.routes],
+                "passengers": [{"destination": str(passenger.destination),
+                                "n_people": passenger.n_people,
+                                "target_time": passenger.target_time,
+                                "start_station": str(passenger.start_station)}
+                               for passenger in self.passengers],
+                "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
+            return text
     def load_snapshot(self, snapshot):
-        self.env = loads(snapshot)
+        env_dict = snapshot
+
+        routes = Routes()
+
+        stations_dict = {}
+        for station in env_dict["stations"]:
+            stations_dict[str(station["name"])] = Station(station["capacity"], station["name"])
+        stations_list = [s for s in stations_dict.values()]
+
+        for route in env_dict["routes"]:
+            routes.add(
+                stations_dict[str(route[0])], stations_dict[str(route[1])]
+            )
+
+        passengers = []
+        for passenger in env_dict["passengers"]:
+            pg = PassengerGroup(stations_dict[str(passenger["destination"])],
+                                passenger["n_people"],
+                                passenger["target_time"])
+            passengers.append(pg)
+            station = stations_dict[str(passenger["start_station"])]
+            station.passengers.append(pg)
+
+        trains = []
+        for i, train in enumerate(env_dict["trains"]):
+            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
+
+        # self.name = env_dict["name"]
+        self.env.passengers = passengers
+        self.env.routes = routes.get_all_routes()
+        self.env.trains = trains
+        self.env.stations = stations_list
 
     def step(self, mcts_action):
         return self.env.step(mcts_action)
