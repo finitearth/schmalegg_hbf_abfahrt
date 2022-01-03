@@ -86,8 +86,8 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
         if torch.isnan(self.log_std).any():
-            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
-            self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
+            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float).to(self.device)
+            self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std)).to(self.device)
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         actions = distribution.get_actions(deterministic=deterministic)
         log_probs = distribution.log_prob(actions)
@@ -101,7 +101,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             mask: Optional[np.ndarray] = None,
             deterministic: bool = False,
     ): #-> Tuple[np.ndarray, Optional[np.ndarray]]:
-        observation = torch.Tensor(observation)
+        observation = torch.Tensor(observation).to(self.device)
         action, _, _ = self.forward(observation, deterministic=False)#deterministic)
         action = action.cpu().detach().numpy()
         return action, state
@@ -118,7 +118,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         mean_actions = torch.hstack(
             (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
         if torch.isnan(self.log_std).any():
-            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
+            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float).to(self.device)
             self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         log_prob = distribution.log_prob(actions)
