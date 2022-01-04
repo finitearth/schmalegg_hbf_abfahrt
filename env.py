@@ -222,7 +222,7 @@ class AbfahrtEnv(gym.Env):
             assert None not in obs, f"None in obs in indices: {np.where(None == obs)}"
             return obs
         else:
-            eit = np.vstack((edge_index_trains0, edge_index_destination1))
+            eit = np.vstack((edge_index_trains0, edge_index_trains1))
             eic = np.vstack((edge_index_connections0, edge_index_connections1))
             eid = np.vstack((edge_index_destination1, edge_index_destination0))
             edge_index_connections = torch.Tensor(eic).long()
@@ -297,5 +297,3 @@ class AbfahrtEnv(gym.Env):
             im = im.convert('RGB')
             plt.imshow(im)
             plt.show()
-    # def get_snapshot(self):
-    #     return dumps(self)
