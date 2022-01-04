@@ -128,7 +128,7 @@ class AbfahrtEnv(gym.Env):
         if self.resets % (self.config.batch_size + len(self.eval_envs)) == 0 and self.mode != "inference":
             for _ in range(self.config.batch_size):
                 env = EnvBlueprint()
-                env.random(n_max_stations=30)
+                env.random(n_max_stations=10)
                 self.train_envs.append(env)
 
         if self.mode == "train":
