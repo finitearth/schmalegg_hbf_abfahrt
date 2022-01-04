@@ -235,7 +235,7 @@ class AbfahrtEnv(gym.Env):
 
             return input_vectors.to(device), edge_index_connections.to(device), edge_index_destinations.to(device), edge_index_trains.to(device), batch.to(device)
         
-       def render(self, mode="human", **kwargs):
+    def render(self, mode="human", **kwargs):
             routes = self.routes
             trains = self.trains
             stations = self.stations
