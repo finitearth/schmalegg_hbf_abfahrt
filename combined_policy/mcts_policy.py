@@ -110,23 +110,26 @@ class MCTS:
 
             c = 0
             done = False
+            snaphot2 = root.snapshot
             while not done:  # node.is_leaf():for _ in range(n_steps):  #
                 c += 1
+               
                 
                 node = node.select_best_leaf()
                 search_path.append(node)
-
+                
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
-                actions = self.env.get_possible_mcts_actions(node.snapshot)
+                actions = self.env.get_possible_mcts_actions(node.parent.snapshot)
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
-
                 node.expand(actions, action_probs)
                 value = self.value_net(input, eic, eid, eit, batch)
                 node.value = value
                 self.backpropagate(search_path, value)
-
+                
+                
+                snaphot2 = node.snapshot
         return root
 
     def backpropagate(self, search_path, value):
@@ -150,7 +153,7 @@ class MCTSWrapper(Wrapper):
         step_count =  self.env.step_count
         text = {
             "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
-            "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed} for train in
+            "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed, "destination": int(train.destination) if train.destination is not None else -1} for train in
                        self.env.trains],
             "passengers": [],
             "stations": [],
@@ -195,9 +198,11 @@ class MCTSWrapper(Wrapper):
 
         trains = []
         for i, train in enumerate(env_dict["trains"]):
-            trains.append(
-                Train(stations_dict[int(train["station"])], train["capacity"], name=str(i), speed=train["speed"]))
-
+            t = Train(stations_dict[int(train["station"])], train["capacity"], name=str(i), speed=train["speed"])
+            trains.append(t)
+            destination = train["destination"]
+            if destination != -1:
+                t.reroute_to(stations_dict[int(destination)])
         # self.env.reset()
         self.env.passengers = passengers
         self.env.step_count = env_dict["step_count"]
@@ -218,12 +223,10 @@ class MCTSWrapper(Wrapper):
         return self.env.step(mcts_action)
 
     def get_result(self, node):
-        self.load_snapshot(node.snapshot)
+        self.load_snapshot(node.parent.snapshot)
 
         observation, reward, done, info = self.step(node.action)
-        print(int(self.env.trains[0].station))
         next_snapshot = self.get_snapshot()
-
         return next_snapshot, observation, reward, done, info
 
     def get_possible_mcts_actions(self, snapshot):
@@ -340,13 +343,13 @@ class Node:
     def expand(self, actions, priors):
         for action, prior in zip(actions, priors):
             node = Node(self, action, prior)
-            if node not in Node.nodes:
-                Node.nodes.add(node)
-                self.children.add(node)
+            # if node not in Node.nodes:
+            #     Node.nodes.add(node)
+            self.children.add(node)
 
-    def __hash__(self):
-        return hash(((p.station.name for p in self.snapshot["passengers"]),
-                     (t.station.name for t in self.snapshot["trains"])))
+    # def __hash__(self):
+    #     return hash(((p.station.name for p in self.snapshot["passengers"]),
+    #                  (t.station.name for t in self.snapshot["trains"])))
 
 
 class Root(Node):
