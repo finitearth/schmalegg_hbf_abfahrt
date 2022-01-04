@@ -53,6 +53,8 @@ class AbfahrtEnv(gym.Env):
         self.step_count = 0 # help me stepcount, im stuck!
 
     def step(self, action):
+        self.step_count += 1
+        # print(self.trains[0].station.__int__(),self.step_count)
         if self.training == "ppo":
             ppo_action = action
             mcts_action = None
@@ -61,7 +63,7 @@ class AbfahrtEnv(gym.Env):
             mcts_action = action
         else: raise ValueError("._:")
         n = self.config.action_vector_size//2
-        if ppo_action is None: ppo_action = self.get_ppo_action(self.get_observation())
+        if ppo_action is None: ppo_action = self.get_ppo_action(self.get_observation())[0]
         if mcts_action is None and (self.mcts_list is None or len(self.mcts_list) < 2):
             self.training = "mcts"
             self.mcts_list = self.get_mcts_action(self)
@@ -71,7 +73,7 @@ class AbfahrtEnv(gym.Env):
             mcts_action = self.mcts_list[1]
             self.mcts_list.pop(0)
 
-        self.step_count += 1
+
 
         for i, station in enumerate(self.stations):
             station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
@@ -81,9 +83,11 @@ class AbfahrtEnv(gym.Env):
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
                 dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
+
                 idx = np.argmax(dot_products)
 
-                if dot_products[idx] > 0: train.onboard(train.station.passengers[idx])
+                if True:#dot_products[idx]:
+                    train.onboard(train.station.passengers[idx])
                 else: break
 
         self.rerouting_trains(mcts_action)
@@ -92,16 +96,14 @@ class AbfahrtEnv(gym.Env):
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
         self.min_steps_to_go = min_steps_to_go
 
-        active_passengers = sum([len(s.passengers) for s in self.stations+self.trains])
+        active_passengers = sum([len(st.passengers) for st in self.stations+self.trains])
         reward += (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
         self.active_passengers = active_passengers
-        # print(active_passengers)
         done = bool(active_passengers == 0)
         if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
             done = True
             reward = -5
         # print(done)
-        # print(self.step_count)
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):

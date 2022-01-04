@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import networkx
 from networkx.algorithms.assortativity.pairs import node_attribute_xy
 import numpy as np
@@ -30,17 +32,15 @@ class Trainer:
         train_examples = []
 
         root = self.mcts.run(root)
-        mcts_action = root.select_best_leaf().action
-        next_snapshot, observation, reward, done, _ = self.env.get_result(
-            root.snapshot, mcts_action)
-        train_examples.append(([observation], root.action_probs))
+        # next_snapshot, observation, reward, done, _ = self.env.get_result(root)
+        # train_examples.append(([observation], root.action_probs))
 
         return train_examples
 
     def learn(self, root):
-        for i in range(self.config.n_iters):
+        for i in range(1):#self.config.n_iters):
             train_examples = []
-            for eps in range(self.config.n_eps):
+            for eps in range(1):#self.config.n_eps):
                 iteration_train_examples = self.execute_episode(root)
                 train_examples.extend(iteration_train_examples)
 
@@ -83,19 +83,20 @@ class MCTS:
         self.get_ppo_action = get_ppo_action
 
     def predict(self, env):
-        self.env = MCTSWrapper(env)
-        snapshot = self.env.get_snapshot()
-        root = Root(snapshot, self.env.get_observation())
-        root = self.run(root)
-        actions = []
-        node = root
-        while not node.is_leaf():
-            actions.append(node.action)
-            node = node.select_best_leaf()
-        return actions
+        raise NotImplementedError
+    #     self.env = MCTSWrapper(env)
+    #     snapshot = self.env.get_snapshot()
+    #     root = Root(snapshot, self.env.get_observation())
+    #     root = self.run(root)
+    #     actions = []
+    #     node = root
+    #     while not node.is_leaf():
+    #         actions.append(node.action)
+    #         node = node.select_best_leaf()
+    #     return actions
 
     def run(self, root):
-        # self.env.load_snapshot(root.snapshot)
+        self.env.load_snapshot(root.snapshot)
         obs = root.observation
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
         actions = self.env.get_possible_mcts_actions(root.snapshot)
@@ -103,41 +104,23 @@ class MCTS:
         action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
 
-
         for _ in range(n_simulations):
             node = root.select_best_leaf()
-            search_path = [node]
 
-            c = 0
             done = False
-            snaphot2 = root.snapshot
-            while not done:  # node.is_leaf():for _ in range(n_steps):  #
-                c += 1
-               
-                
+            while not done:
                 node = node.select_best_leaf()
-                search_path.append(node)
-                
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
-                actions = self.env.get_possible_mcts_actions(node.parent.snapshot)
+                actions = self.env.get_possible_mcts_actions(node.snapshot)  # node.parent.snapshot
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
                 node.expand(actions, action_probs)
+                if node.is_dead_end: break
                 value = self.value_net(input, eic, eid, eit, batch)
-                node.value = value
-                self.backpropagate(search_path, value)
-                
-                
-                snaphot2 = node.snapshot
+                node.backpropagate(value)
+
         return root
-
-    def backpropagate(self, search_path, value):
-        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
-
-        for node in reversed(search_path):
-            node.value_sum += value
-            node.visit_count += 1
 
 
 class MCTSWrapper(Wrapper):
@@ -145,20 +128,17 @@ class MCTSWrapper(Wrapper):
         super().__init__(env)
 
     def get_snapshot(self):
-        # edges = self.routes
-        # edges = list(zip(edges[0], edges[1]))
-        # g = networkx.Graph()
-        # for edge in edges:
-        #     g.add_edge(edge[0], edge[1])
-        step_count =  self.env.step_count
+        step_count = deepcopy(self.env.step_count)
         text = {
             "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
-            "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed, "destination": int(train.destination) if train.destination is not None else -1} for train in
+            "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed,
+                        "destination": int(train.destination) if train.destination is not None else -1,
+                        "vector": train.input_vector}
+                       for train in
                        self.env.trains],
             "passengers": [],
             "stations": [],
             "step_count": step_count}
-        # "shortest_paths": self.env.shortest_path_lenghts}
 
         for st in self.env.trains + self.env.stations:
             for p in st.passengers:
@@ -169,14 +149,17 @@ class MCTSWrapper(Wrapper):
 
         for station in self.env.stations:
             text["stations"].append({"name": station.name, "capacity": station.capacity,
-                                     "reachable_stops": [int(s) for s in station.reachable_stops]})
+                                     "reachable_stops": [int(s) for s in station.reachable_stops],
+                                     "vector": station.input_vector})
 
         return text
 
     def load_snapshot(self, env_dict):
         stations_dict = {}
         for station in env_dict["stations"]:
-            stations_dict[int(station["name"])] = Station(station["capacity"], station["name"])
+            s = Station(station["capacity"], station["name"])
+            stations_dict[int(station["name"])] = s
+            s.input_vector = station["vector"]
 
         stations_list = [s for s in stations_dict.values()]
 
@@ -199,10 +182,11 @@ class MCTSWrapper(Wrapper):
         trains = []
         for i, train in enumerate(env_dict["trains"]):
             t = Train(stations_dict[int(train["station"])], train["capacity"], name=str(i), speed=train["speed"])
-            trains.append(t)
+            t.input_vector = train["vector"]
             destination = train["destination"]
             if destination != -1:
                 t.reroute_to(stations_dict[int(destination)])
+            trains.append(t)
         # self.env.reset()
         self.env.passengers = passengers
         self.env.step_count = env_dict["step_count"]
@@ -231,13 +215,11 @@ class MCTSWrapper(Wrapper):
 
     def get_possible_mcts_actions(self, snapshot):
         self.load_snapshot(snapshot)
-        # trains_start = [int(t.station) for t in self.env.trains]
-        # g = self.env.graph
+
         actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
                    for t in self.env.trains]
         actions = list(cart_product(*actions))
         actions = torch.tensor(actions)
-        # actions = actions.swapaxes(1, 0)
         return actions
 
 
@@ -311,6 +293,7 @@ class Node:
     nodes = set()
 
     def __init__(self, parent, action, prior):
+        self.is_dead_end = False
         self.parent = parent
         self.action = action
         self.prior = prior if not isinstance(prior, torch.Tensor) else prior.cpu().detach().numpy()
@@ -318,10 +301,11 @@ class Node:
         self.visit_count = 0
         self.value_sum = 0
         self.action_probs = None
+        self.snapshot = None
+        self.hasher = str(parent.snapshot) + str(self.action) if parent else 0
 
     def set_snapshot(self, snapshot):
         self.snapshot = snapshot
-
 
     def is_leaf(self):
         return len(self.children) == 0
@@ -343,13 +327,23 @@ class Node:
     def expand(self, actions, priors):
         for action, prior in zip(actions, priors):
             node = Node(self, action, prior)
-            # if node not in Node.nodes:
-            #     Node.nodes.add(node)
-            self.children.add(node)
+            if node not in Node.nodes:
+                Node.nodes.add(node)
+                self.children.add(node)
 
-    # def __hash__(self):
-    #     return hash(((p.station.name for p in self.snapshot["passengers"]),
-    #                  (t.station.name for t in self.snapshot["trains"])))
+        if len(self.children) == 0: self.is_dead_end = True
+
+    def backpropagate(self, value):
+        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
+        self.value_sum += value
+        self.visit_count += 1
+        self.parent.backpropagate(value)
+
+    def __hash__(self):
+        return hash(self.hasher)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
 
 
 class Root(Node):
@@ -357,3 +351,7 @@ class Root(Node):
         super().__init__(None, None, 1)
         self.observation = observation
         self.snapshot = snapshot
+        self.hasher = tuple()
+
+    def backpropagate(self, value):
+        self.value_sum += value
