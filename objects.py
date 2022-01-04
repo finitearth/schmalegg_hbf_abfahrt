@@ -138,7 +138,7 @@ class EnvBlueprint:
             sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
             sc.input_vector = so.input_vector
 
-        trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
+        trains = [Train(stations[int(t.station)], t.capacity, t.name, t.speed) for t in self.trains]
         # self.graph = nx.Graph()
         # for s1, s2 in zip(self.routes[0], self.routes[1]):
         #     self.graph.add_edge(s1, s2)

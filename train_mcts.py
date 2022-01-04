@@ -11,7 +11,7 @@ import torch
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-def train_mcts(env, mcts_trainer, ppo_model):
+def train_mcts(env, mcts_trainer):
     env.training = "mcts"
 
     observation = env.reset()

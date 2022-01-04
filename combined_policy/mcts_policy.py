@@ -108,7 +108,7 @@ class MCTS:
 
             c = 0
             done = False
-            while not done:#node.is_leaf():for _ in range(n_steps):  #
+            while not done:  # node.is_leaf():for _ in range(n_steps):  #
                 c += 1
                 print(c)
                 node = node.select_best_leaf()
@@ -117,20 +117,15 @@ class MCTS:
                 action = node.action
                 next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
                 input, eic, eid, eit, batch = obs
-
                 self.env.load_snapshot(next_snapshot)
                 actions = self.env.get_possible_mcts_actions()
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
                 node.expand(actions, action_probs)
-
-
                 value = self.value_net(input, eic, eid, eit, batch)
                 node.value = value
                 self.backpropagate(search_path, value)
 
-
         return root
-
 
     def backpropagate(self, search_path, value):
         if isinstance(value, torch.Tensor): value = value.detach().numpy()
@@ -152,7 +147,8 @@ class MCTSWrapper(Wrapper):
         #     g.add_edge(edge[0], edge[1])
         text = {
             "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
-            "trains": [{"station": int(train.station), "capacity": train.capacity} for train in self.env.trains],
+            "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed} for train in
+                       self.env.trains],
             "passengers": [],
             "stations": [],
             "step_count": self.env.step_count}
@@ -172,9 +168,6 @@ class MCTSWrapper(Wrapper):
         return text
 
     def load_snapshot(self, env_dict):
-
-
-
         stations_dict = {}
         for station in env_dict["stations"]:
             stations_dict[int(station["name"])] = Station(station["capacity"], station["name"])
@@ -199,9 +192,8 @@ class MCTSWrapper(Wrapper):
 
         trains = []
         for i, train in enumerate(env_dict["trains"]):
-
-            trains.append(Train(stations_dict[int(train["station"])], train["capacity"], name=str(i)))
-
+            trains.append(
+                Train(stations_dict[int(train["station"])], train["capacity"], name=str(i), speed=train["speed"]))
 
         # self.env.reset()
         self.env.passengers = passengers
@@ -219,37 +211,29 @@ class MCTSWrapper(Wrapper):
         self.env.active_passengers = sum([len(s.passengers) for s in self.env.stations + self.env.trains])
         self.env.step_count = 0
 
+    def step(self, mcts_action):
 
+        return self.env.step(mcts_action)
 
-        def step(self, mcts_action):
+    def get_result(self, snapshot, mcts_action):
 
+        self.load_snapshot(snapshot)
 
-            return self.env.step(mcts_action)
+        observation, reward, done, info = self.step(mcts_action)
+        next_snapshot = self.get_snapshot()
 
+        return next_snapshot, observation, reward, done, info
 
+    def get_possible_mcts_actions(self):
 
-        def get_result(self, snapshot, mcts_action):
-
-
-            self.load_snapshot(snapshot)
-
-            observation, reward, done, info = self.step(mcts_action)
-            next_snapshot = self.get_snapshot()
-
-            return next_snapshot, observation, reward, done, info
-
-
-        def get_possible_mcts_actions(self):
-
-
-            # trains_start = [int(t.station) for t in self.env.trains]
-            # g = self.env.graph
-            actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
-                for t in self.env.trains]
-            actions = list(cart_product(*actions))
-            actions = torch.tensor(actions)
-            # actions = actions.swapaxes(1, 0)
-            return actions
+        # trains_start = [int(t.station) for t in self.env.trains]
+        # g = self.env.graph
+        actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
+                   for t in self.env.trains]
+        actions = list(cart_product(*actions))
+        actions = torch.tensor(actions)
+        # actions = actions.swapaxes(1, 0)
+        return actions
 
 
 class PolicyNet(nn.Module):
@@ -339,11 +323,10 @@ class Node:
 
     def get_ucb_score(self):
         prior_score = self.prior * \
-            math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
+                      math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
         return prior_score + self.value_sum
 
     def select_best_leaf(self):
-x
         if self.is_leaf(): return self
         best_child = max([(c, c.get_ucb_score()) for c in self.children], key=lambda x: x[1])[0]
 
