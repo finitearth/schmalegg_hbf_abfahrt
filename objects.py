@@ -160,7 +160,7 @@ class EnvBlueprint:
             stations.append(Station(capacity=capacity, name=i))
         self.stations = stations
         routes = Routes()
-        for i,e in enumerate(edges):
+        for i, e in enumerate(edges):
             max_capacity = 10 
             capacity =  max(1, int(max_capacity*random.random()))
             max_length = 15

@@ -1,10 +1,17 @@
 import glob
+import io
+
 import gym
 import networkx
+import networkx as nx
 import torch
 import numpy as np
+from PIL import ImageDraw, Image
 from gym.spaces import Box
+from matplotlib import pyplot as plt
+
 import objects
+import utils
 from objects import EnvBlueprint
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -228,6 +235,68 @@ class AbfahrtEnv(gym.Env):
 
             return input_vectors.to(device), edge_index_connections.to(device), edge_index_destinations.to(device), edge_index_trains.to(device), batch.to(device)
         
+    def render(self):
+        def render_frame(self, eval_env, step):
+            routes = eval_env.routes
+            trains = eval_env.trains
+            stations = eval_env.stations
+            graph = list(zip(routes[0], routes[1]))
+            nx_graph = nx.Graph()
+            for node in set(routes[0]):
+                nx_graph.add_node(node)
+            train_colors = ["red", "green", "yellow", "pink", "grey"]
+            train_to_colors = {}
+            for i, t in enumerate(trains):
+                train_to_colors[t] = train_colors[i]
+            for source, target in graph:
+                nx_graph.add_edge(source, target)
+            color_map = ["blue"] * len(set(routes[0]))
+            for t in trains:
+                station = int(t.station)
+                color_map[station] = train_to_colors[t]
 
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1)
+            nx.draw_kamada_kawai(nx_graph, with_labels=True, ax=ax, node_color=color_map)
+
+            img_buf = io.BytesIO()
+            plt.savefig(img_buf, format='png')
+
+            im = Image.open(img_buf)
+
+            black = (0, 0, 0)
+
+            d = ImageDraw.Draw(im)
+            d.text((28, 36), f"Iteration {self.n_calls}\nStep {step}", fill=black)
+
+            point_map = {0: (333, 323), 1: (533, 145), 2: (355, 100), 3: (120, 364), 4: (177, 266), 5: (365, 214),
+                         6: (470, 409)}
+            for s in stations:
+                s_ = int(s)
+                if s.vector is not None:
+                    p0, p1 = int(s.vector[0] * 50), int(s.vector[1] * 50)
+                    d, im = utils.draw_arrow(im, (point_map[s_][0] - 50, point_map[s_][1]),
+                                             (point_map[s_][0] - 50 + p0, point_map[s_][1] + p1), color=(0, 0, 255),
+                                             thickness=3)
+                    p0, p1 = int(s.vector[2] * 50), int(s.vector[3] * 50)
+                    d, im = utils.draw_arrow(im, (point_map[s_][0] - 100, point_map[s_][1]),
+                                             (point_map[s_][0] - 100 + p0, point_map[s_][1] + p1), color=(255, 0, 0),
+                                             thickness=3)
+                if s.passengers:
+                    d, im = utils.draw_arrow(im, point_map[s_], (point_map[s_][0], point_map[s_][1] + 25))
+                    for i, p in enumerate(s.passengers, start=2):
+                        d.text((point_map[s_][0] - 50, point_map[s_][1] + i * 12),
+                               f"In Station -> {int(p.destination)}", fill=black)
+
+            for t in trains:
+                if t.passengers:
+                    s_ = int(t.station)
+                    d, im = utils.draw_arrow(im, point_map[s_], (point_map[s_][0], point_map[s_][1] + 25))
+                    for i, p in enumerate(t.passengers, start=2):
+                        d.text((point_map[s_][0] - 50, point_map[s_][1] + i * 12), f"In Train -> {int(p.destination)}",
+                               fill=black)
+            im = im.convert('RGB')
+            plt.imshow(im)
+            plt.show()
     # def get_snapshot(self):
     #     return dumps(self)
