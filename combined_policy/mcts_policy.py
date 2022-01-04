@@ -1,4 +1,5 @@
 import networkx
+from networkx.algorithms.assortativity.pairs import node_attribute_xy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -102,6 +103,7 @@ class MCTS:
         action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
 
+
         for _ in range(n_simulations):
             node = root.select_best_leaf()
             search_path = [node]
@@ -114,10 +116,8 @@ class MCTS:
                 node = node.select_best_leaf()
                 search_path.append(node)
 
-                parent = node.parent
-                action = node.action
-                next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
-                node.snapshot = next_snapshot
+                next_snapshot, obs, reward, done, info = self.env.get_result(node)
+                node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
@@ -207,7 +207,7 @@ class MCTSWrapper(Wrapper):
         for st in self.env.trains + self.env.stations: st.set_input_vector(self.config)
 
         self.env.trains_dict = {int(t): t for t in self.trains}
-        self.env.stations_dict = stations_dict  # {int(s): s for s in self.stations}
+        self.env.stations_dict = {int(s): s for s in self.stations}
 
         self.env.shortest_path_lenghts = self.env.init_shortest_path_lengths
         # self.env.min_steps_to_go = self.env.get_min_steps_to_go()
@@ -217,10 +217,10 @@ class MCTSWrapper(Wrapper):
     def step(self, mcts_action):
         return self.env.step(mcts_action)
 
-    def get_result(self, snapshot, mcts_action):
-        self.load_snapshot(snapshot)
+    def get_result(self, node):
+        self.load_snapshot(node.snapshot)
 
-        observation, reward, done, info = self.step(mcts_action)
+        observation, reward, done, info = self.step(node.action)
         print(int(self.env.trains[0].station))
         next_snapshot = self.get_snapshot()
 
@@ -307,15 +307,18 @@ class PolicyNet(nn.Module):
 class Node:
     nodes = set()
 
-    def __init__(self, parent, action, snapshot, prior):
+    def __init__(self, parent, action, prior):
         self.parent = parent
         self.action = action
-        self.snapshot = snapshot
         self.prior = prior if not isinstance(prior, torch.Tensor) else prior.cpu().detach().numpy()
         self.children = set()
         self.visit_count = 0
         self.value_sum = 0
         self.action_probs = None
+
+    def set_snapshot(self, snapshot):
+        self.snapshot = snapshot
+
 
     def is_leaf(self):
         return len(self.children) == 0
@@ -336,7 +339,7 @@ class Node:
 
     def expand(self, actions, priors):
         for action, prior in zip(actions, priors):
-            node = Node(self, action, self.snapshot, prior)
+            node = Node(self, action, prior)
             if node not in Node.nodes:
                 Node.nodes.add(node)
                 self.children.add(node)
@@ -348,5 +351,6 @@ class Node:
 
 class Root(Node):
     def __init__(self, snapshot, observation):
-        super().__init__(None, None, snapshot, 1)
+        super().__init__(None, None, 1)
         self.observation = observation
+        self.snapshot = snapshot

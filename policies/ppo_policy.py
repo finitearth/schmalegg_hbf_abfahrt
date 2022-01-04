@@ -15,6 +15,7 @@ from torch_geometric.data import Data, HeteroData
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import to_dense_batch, add_self_loops
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def get_model(multi_env, config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -179,7 +180,7 @@ class Extractor(nn.Module):
         self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons,  aggr=config.aggr_dest)
         self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
         self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.lin_layers = [Linear(config.hidden_neurons, config.hidden_neurons) for _ in range(config.n_lin_extr)]
+        self.lin_layers = [Linear(config.hidden_neurons, config.hidden_neurons).to(device) for _ in range(config.n_lin_extr)]
         self.activation = config.activation
 
         self.config = config
