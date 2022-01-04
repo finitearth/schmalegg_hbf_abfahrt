@@ -38,7 +38,7 @@ batch_size = 10
 n_steps = 20
 if __name__ == '__main__':
     config = utils.ConfigParams()
-    train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)
+    train_env = AbfahrtEnv(config=config, mode="render", using_mcts=True)
     train_env.reset()
     # train_env = mcts.MCTSWrapper(train_env)
     # train_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
