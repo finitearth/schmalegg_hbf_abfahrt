@@ -6,7 +6,6 @@ import numpy as np
 import json
 from matplotlib import pyplot as plt
 from networkx import fast_gnp_random_graph
-from dill import loads, dumps
 
 
 class EnvBlueprint:
@@ -94,7 +93,8 @@ class EnvBlueprint:
         for passenger in env_dict["passengers"]:
             pg = PassengerGroup(stations_dict[str(passenger["destination"])],
                                 passenger["n_people"],
-                                passenger["target_time"])
+                                passenger["target_time"],
+                                stations_dict[str(passenger["start_station"])])
             passengers.append(pg)
             station = stations_dict[str(passenger["start_station"])]
             station.passengers.append(pg)
@@ -126,18 +126,18 @@ class EnvBlueprint:
         else: return text
 
     def get(self):
-        # stations = [Station(s.capacity, i) for i, s in enumerate(self.stations)]
-        # for sc, so in zip(stations, self.stations):
-        #     sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time) for p in
-        #                      so.passengers]
-        #     sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
-        #     sc.input_vector = so.input_vector
-        #
-        # trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
+        stations = [Station(s.capacity, i) for i, s in enumerate(self.stations)]
+        for sc, so in zip(stations, self.stations):
+            sc.passengers = [PassengerGroup(stations[int(p.destination)], p.n_people, p.target_time, p.start_station)
+                             for p in so.passengers]
+            sc.reachable_stops = [stations[int(s)] for s in so.reachable_stops]
+            sc.input_vector = so.input_vector
+
+        trains = [Train(stations[int(t.station)], t.capacity, t.name) for t in self.trains]
         # self.graph = nx.Graph()
         # for s1, s2 in zip(self.routes[0], self.routes[1]):
         #     self.graph.add_edge(s1, s2)
-        return loads(dumps((self.routes, self.stations, self.trains)))#, stations, trains
+        return self.routes, stations, trains
 
     def random(self, n_max_stations):
         n_station = int(max(7, n_max_stations * random.random()))
@@ -169,7 +169,7 @@ class EnvBlueprint:
             destination = station
             while destination == station:
                 station = random.choice(stations)
-            passenger_group = PassengerGroup(destination, n_passenger, target_time)
+            passenger_group = PassengerGroup(destination, n_passenger, target_time, station)
             station.passengers.append(passenger_group)
             passenger_group.start_station = station
             self.passengers.append(passenger_group)
@@ -203,9 +203,9 @@ class Station:
         self.vector = None
         self.input_vector = None
 
-    def set_input_vector(self, n_node_features, config):
-        self.input_vector = np.ones(n_node_features) * (1 - config.range_inputvec) \
-                          + np.random.rand(n_node_features) * config.range_inputvec * 2
+    def set_input_vector(self, config):
+        self.input_vector = np.ones(config.n_node_features) * (1 - config.range_inputvec) \
+                          + np.random.rand(config.n_node_features) * config.range_inputvec * 2
 
     def get_encoding(self):
         return self.input_vector
@@ -242,12 +242,12 @@ class Routes:
 
 
 class PassengerGroup:
-    def __init__(self, destination, n_people, target_time):
+    def __init__(self, destination, n_people, target_time, start_station):
         assert isinstance(destination, Station), f"{destination} is not of type Station"
         self.destination = destination
         self.n_people = n_people
         self.target_time = target_time
-        self.start_station = None
+        self.start_station = start_station
 
     def reached_destination(self, current_station):
         assert isinstance(current_station, Station), f"{current_station} is not of type Station"
@@ -265,9 +265,9 @@ class Train:
         self.name = name
         self.input_vector = None
 
-    def set_input_vector(self, n_node_features, config):
-        self.input_vector = np.ones(n_node_features) * (1 - config.range_inputvec) \
-                        + np.random.rand(n_node_features) * config.range_inputvec * 2
+    def set_input_vector(self, config):
+        self.input_vector = np.ones(config.n_node_features) * (1 - config.range_inputvec) \
+                        + np.random.rand(config.n_node_features) * config.range_inputvec * 2
 
     def get_encoding(self):
         return self.input_vector

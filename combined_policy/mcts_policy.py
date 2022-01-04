@@ -1,15 +1,13 @@
+import networkx
 import numpy as np
 import torch
 import torch.nn as nn
-from dill import dumps, loads
 from gym import Wrapper
 from torch_geometric.nn import Linear
 import math
 import random
 from itertools import product as cart_product
-
-import utils
-from objects import Routes, Station, PassengerGroup, Train
+from objects import Station, PassengerGroup, Train
 
 n_simulations = 10
 n_steps = 10
@@ -23,17 +21,6 @@ class Trainer:
         self.config = config
         self.mcts = MCTS(env, value_net, policy_net, self.config, get_ppo_action)
         self.train_examples_history = []
-
-    def predict(self, snapshot, observation):
-        root = Root(snapshot, observation)
-        root = self.mcts.run(root)
-        node = root
-        action = []
-        while not node.is_leaf():
-            node = node.select_best_leaf()
-            action.append(node.action)
-
-        return list(reversed(action))
 
     def execute_episode(self, root):
         train_examples = []
@@ -79,9 +66,6 @@ class Trainer:
                 v_optim.step()
 
 
-
-
-
 class MCTS:
     def __init__(self, env, value_net, policy_net, config, get_ppo_action):
         self.env = MCTSWrapper(env)
@@ -90,42 +74,55 @@ class MCTS:
         self.config = config
         self.get_ppo_action = get_ppo_action
 
+    def predict(self, env):
+        self.env = MCTSWrapper(env)
+        snapshot = self.env.get_snapshot()
+        root = Root(snapshot, self.env.get_observation())
+        root = self.run(root)
+        actions = []
+        node = root
+        while not node.is_leaf():
+            actions.append(node.action)
+            node = node.select_best_leaf()
+        return actions
+
     def run(self, root):
         self.env.load_snapshot(root.snapshot)
         obs = root.observation
-        inputs, eic, eid, eit, _ = utils.convert_observation(obs, self.config)
+        inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
         actions = self.env.get_possible_mcts_actions()
 
         action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
 
         for _ in range(n_simulations):
-            node = root
+            node = root.select_best_leaf()
             search_path = [node]
-            for _ in range(n_steps):
+            c = 0
+            done = False
+            while not done:#node.is_leaf():for _ in range(n_steps):  #
+                c += 1
+                print(c)
                 node = node.select_best_leaf()
-                action = node.action
                 search_path.append(node)
+                parent = node.parent
+                action = node.action
+                next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
+                input, eic, eid, eit, batch = obs
 
-            parent = search_path[-2]
+                self.env.load_snapshot(next_snapshot)
+                actions = self.env.get_possible_mcts_actions()
+                action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
+                node.expand(actions, action_probs)
 
-            next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
-            # next actions
-            self.env.load_snapshot(next_snapshot)
-            actions = self.env.get_possible_mcts_actions()
-            input, eic, eid, eit, batch = utils.convert_observation(obs, self.config)
-            action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
-            value = self.value_net(input, eic, eid, eit, batch)
-            node.value = value
+                value = self.value_net(input, eic, eid, eit, batch)
+                node.value = value
+                self.backpropagate(search_path, value)
 
-            node.expand(actions, action_probs)
-
-            self.backpropagate(search_path, value)
 
         return root
 
-    @staticmethod
-    def backpropagate(search_path, value):
+    def backpropagate(self, search_path, value):
         if isinstance(value, torch.Tensor): value = value.detach().numpy()
         for node in reversed(search_path):
             node.value_sum += value
@@ -137,58 +134,81 @@ class MCTSWrapper(Wrapper):
         super().__init__(env)
 
     def get_snapshot(self):
+        # edges = self.routes
+        # edges = list(zip(edges[0], edges[1]))
+        # g = networkx.Graph()
+        # for edge in edges:
+        #     g.add_edge(edge[0], edge[1])
+        text = {
+            "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
+            "trains": [{"station": int(train.station), "capacity": train.capacity} for train in self.env.trains],
+            "passengers": [],
+            "stations": [],
+            "step_count": self.env.step_count}
+        # "shortest_paths": self.env.shortest_path_lenghts}
 
-            text = {
-                "name": self.name,
-                "stations": [{"name": station.name, "capacity": station.capacity} for station in self.stations],
-                "routes": [route for route in self.routes],
-                "passengers": [{"destination": str(passenger.destination),
-                                "n_people": passenger.n_people,
-                                "target_time": passenger.target_time,
-                                "start_station": str(passenger.start_station)}
-                               for passenger in self.passengers],
-                "trains": [{"station": str(train.station), "capacity": train.capacity} for train in self.trains]}
-            return text
-    def load_snapshot(self, snapshot):
-        env_dict = snapshot
+        for st in self.env.trains + self.env.stations:
+            for p in st.passengers:
+                text["passengers"].append({"destination": int(p.destination),
+                                           "n_people": p.n_people,
+                                           "target_time": p.target_time,
+                                           "start_station": int(p.start_station)})
 
-        routes = Routes()
+        for station in self.env.stations:
+            text["stations"].append({"name": station.name, "capacity": station.capacity,
+                                     "reachable_stops": [int(s) for s in station.reachable_stops]})
+
+        return text
+
+    def load_snapshot(self, env_dict):
+        # routes = Routes()
 
         stations_dict = {}
         for station in env_dict["stations"]:
-            stations_dict[str(station["name"])] = Station(station["capacity"], station["name"])
+            stations_dict[int(station["name"])] = Station(station["capacity"], station["name"])
+
         stations_list = [s for s in stations_dict.values()]
 
-        for route in env_dict["routes"]:
-            routes.add(
-                stations_dict[str(route[0])], stations_dict[str(route[1])]
-            )
+        for i, station in enumerate(stations_list):
+            reachable_stops = env_dict["stations"][i]["reachable_stops"]
+            for s in reachable_stops:
+                station.reachable_stops.append(stations_list[int(s)])
 
         passengers = []
         for passenger in env_dict["passengers"]:
-            pg = PassengerGroup(stations_dict[str(passenger["destination"])],
+            pg = PassengerGroup(stations_dict[int(passenger["destination"])],
                                 passenger["n_people"],
-                                passenger["target_time"])
+                                passenger["target_time"],
+                                stations_dict[int(passenger["start_station"])])
             passengers.append(pg)
-            station = stations_dict[str(passenger["start_station"])]
+            station = stations_dict[int(passenger["start_station"])]
             station.passengers.append(pg)
 
         trains = []
         for i, train in enumerate(env_dict["trains"]):
-            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
+            trains.append(Train(stations_dict[int(train["station"])], train["capacity"], name=str(i)))
 
-        # self.name = env_dict["name"]
+        # self.env.reset()
         self.env.passengers = passengers
-        self.env.routes = routes.get_all_routes()
+        self.env.step_count = env_dict["step_count"]
+        self.env.routes = env_dict["routes"]  # routes.get_all_routes()
         self.env.trains = trains
         self.env.stations = stations_list
+        for st in self.env.trains + self.env.stations: st.set_input_vector(self.config)
+
+        self.env.trains_dict = {int(t): t for t in self.trains}
+        self.env.stations_dict = stations_dict  # {int(s): s for s in self.stations}
+
+        self.env.shortest_path_lenghts = self.env.init_shortest_path_lengths
+        # self.env.min_steps_to_go = self.env.get_min_steps_to_go()
+        self.env.active_passengers = sum([len(s.passengers) for s in self.env.stations + self.env.trains])
+        self.env.step_count = 0
 
     def step(self, mcts_action):
         return self.env.step(mcts_action)
 
     def get_result(self, snapshot, mcts_action):
         self.load_snapshot(snapshot)
-
         observation, reward, done, info = self.step(mcts_action)
         next_snapshot = self.get_snapshot()
 
@@ -247,30 +267,27 @@ class PolicyNet(nn.Module):
             x = lin(x)
         x = self.lin1(x)
 
-        dest_vecs = x[:, :, self.n:]#x[:, self.n:]#
-        start_vecs = x[:, :, :self.n] #x[:, :self.n]#
+        dest_vecs = x[:, :, self.n:]  # x[:, self.n:]#
+        start_vecs = x[:, :, :self.n]  # x[:, :self.n]#
 
         return start_vecs, dest_vecs
 
     def get_prob(self, actions, start_vecs, dest_vecs):
-        starts = start_vecs[:, actions[:, :, :, 0].flatten()] # batches, action, stations, bool_starting
+        starts = start_vecs[:, actions[:, :, :, 0].flatten()]  # batches, action, stations, bool_starting
         dests = dest_vecs[:, actions[:, :, :, 1].flatten()]
-        probs = torch.einsum('bij,bij->bi', starts, dests) # Einstein Summation :)
+        probs = torch.einsum('bij,bij->bi', starts, dests)  # Einstein Summation :)
         probs = self.softmax(probs)
         return probs
 
 
-
 class Node:
-    parent = None
-    qvalue_sum = 0.
-    times_visited = 0
+    nodes = set()
 
     def __init__(self, parent, action, snapshot, prior):
         self.parent = parent
         self.action = action
         self.snapshot = snapshot
-        self.prior = prior if isinstance(prior, np.ndarray) else prior.detach().numpy()
+        self.prior = prior if not isinstance(prior, torch.Tensor) else prior.detach().numpy()
         self.children = set()
         self.visit_count = 0
         self.value_sum = 0
@@ -282,42 +299,28 @@ class Node:
     def is_root(self):
         return self.parent is None
 
-    # def get_qvalue_estimate(self):
-    #     return self.q_predicted / self.times_visited if self.times_visited != 0 else 0
-
     def get_ucb_score(self):
         prior_score = self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
         return prior_score + self.value_sum
 
     def select_best_leaf(self):
         if self.is_leaf(): return self
-        children = list(self.children)
         best_child = max([(c, c.get_ucb_score()) for c in self.children], key=lambda x: x[1])[0]
         return best_child.select_best_leaf()
 
     def expand(self, actions, priors):
         for action, prior in zip(actions, priors):
             node = Node(self, action, self.snapshot, prior)
-            self.children.add(node)
+            if node not in Node.nodes:
+                Node.nodes.add(node)
+                self.children.add(node)
 
-        return self.select_best_leaf()
-
-    # def propagate(self, child_qvalue):
-    #     qvalue = self.immediate_reward + child_qvalue
-    #     self.qvalue_sum += qvalue
-    #     self.times_visited += 1
-    #
-    #     if not self.is_root(): self.parent.propagate(qvalue)
+    def __hash__(self):
+        return hash(((p.station.name for p in self.snapshot["passengers"]),
+                     (t.station.name for t in self.snapshot["trains"])))
 
 
 class Root(Node):
     def __init__(self, snapshot, observation):
-        self.parent = self.action = None
-        self.children = set()
-        self.snapshot = snapshot
+        super().__init__(None, None, snapshot, 1)
         self.observation = observation
-        self.immediate_reward = 0
-        self.is_done = False
-        self.visit_count = 0
-        self.value_sum = 0
-        self.action_probs = None

@@ -61,6 +61,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         x, eic, eid, eit, batch = utils.convert_observation(obs, self.config)
         values = self.value_net(x, eic, eid, eit, batch)
         mean_actions = self.policy_net(x, eic, eid, eit, batch)
+        mean_actions, _ = to_dense_batch(mean_actions, batch)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack((mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1])))
         if torch.isnan(self.log_std).any():
@@ -73,24 +74,33 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         return actions, values, log_probs
 
     def predict(self, observation, state=None, mask=None, deterministic=False):
-        if isinstance(observation, np.ndarray): observation = torch.Tensor(observation)
-        action, _, _ = self.forward(observation, deterministic)
-        action = action.cpu().detach().numpy()
-        return action, state
+        x, eic, eid, eit, batch = observation# utils.convert_observation(observation, self.config)
+        # if isinstance(x, np.ndarray): x = torch.Tensor(x)
+        with torch.no_grad():
+            action = self.policy_net(x, eic, eid, eit, batch)
+            # action = action.numpy()
+        return action
+        # action, _, _ = self.forward(observation, deterministic)
+        # action = action.cpu().detach().numpy()
+        # return action, state
+
+    # def get_action(self, observation):
+    #
 
     def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor):
-        x, edge_index_connections, edge_index_destinations, edge_index_trains,  batch = self._convert_observation(obs)
+        x, eic, eid, eit, batch = utils.convert_observation(obs, self.config)
         with torch.no_grad():
-            latent = self.mlp_extractor(x, edge_index_connections, edge_index_destinations, edge_index_trains)
-            values = self.value_net(latent, edge_index_connections, edge_index_destinations, batch)
-            latent, _ = to_dense_batch(latent, batch)
-            mean_actions = self.policy_net(latent, edge_index_connections, edge_index_destinations)
+            values = self.value_net(x, eic, eid, eit,  batch)
+            latent, _ = to_dense_batch(x, batch)
+            mean_actions = self.policy_net(latent, eic, eid, eit)
         mean_actions = torch.flatten(mean_actions, start_dim=1)
         mean_actions = torch.hstack(
-            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(self.device)
+            (mean_actions, torch.zeros(mean_actions.shape[0], 50_000 - mean_actions.size()[1]).to(self.device))).to(
+            self.device)
         if torch.isnan(self.log_std).any():
-            log_std_torch =  torch.tensor(self.log_std_init, dtype=torch.float)
-            self.log_std = torch.nn.parameter.Parameter(torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
+            log_std_torch = torch.tensor(self.log_std_init, dtype=torch.float)
+            self.log_std = torch.nn.parameter.Parameter(
+                torch.where(torch.isnan(self.log_std), log_std_torch, self.log_std))
         distribution = self.action_dist.proba_distribution(mean_actions, self.log_std)
         log_prob = distribution.log_prob(actions)
 
@@ -124,7 +134,7 @@ class PolicyNet(nn.Module):
         for _ in range(self.config.it_aft_dest):
             x = self.conv5(x, edge_index_connections)
             # x = self.activation(x)
-        x, _ = to_dense_batch(x, batch)
+        # x, _ =
         for lin in self.lins:
             x = lin(x)
         x = self.lin1(x)

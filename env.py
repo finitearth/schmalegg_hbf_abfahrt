@@ -3,7 +3,6 @@ import gym
 import networkx
 import torch
 import numpy as np
-from dill import dumps
 from gym.spaces import Box
 import objects
 from objects import EnvBlueprint
@@ -12,6 +11,7 @@ from objects import EnvBlueprint
 class AbfahrtEnv(gym.Env):
     def __init__(self, config, mode="eval", using_mcts=False):
         super(AbfahrtEnv, self).__init__()
+        self.init_shortest_path_lengths = None
         self.stations = []
         self.trains = []
         self.trains_dict = {}
@@ -51,12 +51,12 @@ class AbfahrtEnv(gym.Env):
         elif self.training == "mcts":
             ppo_action = None
             mcts_action = action
+        else: raise ValueError("._:")
         n = self.config.action_vector_size//2
-        if ppo_action is None: ppo_action = self.get_ppo_action(self.get_observation())[0][0]
+        if ppo_action is None: ppo_action = self.get_ppo_action(self.get_observation())
         if mcts_action is None and (self.mcts_list is None or len(self.mcts_list) < 2):
             self.training = "mcts"
-            self.mcts_list = self.get_mcts_action(self.get_snapshot(), self.get_observation())
-            mcts_action = self.mcts_list[0]
+            self.mcts_list = self.get_mcts_action(self)
             self.mcts_list.pop(0)
             self.training = "ppo"
         elif mcts_action is None and self.mcts_list is not None:
@@ -64,9 +64,7 @@ class AbfahrtEnv(gym.Env):
             self.mcts_list.pop(0)
 
         self.step_count += 1
-        # if isinstance(ppo_action, torch.Tensor):
-        #     ppo_action = ppo_action.detach().numpy()
-        # ppo_action = ppo_action[:self.action_vector_size * len(self.stations)]
+
         for i, station in enumerate(self.stations):
             station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
 
@@ -82,7 +80,7 @@ class AbfahrtEnv(gym.Env):
 
         self.rerouting_trains(mcts_action)
 
-        min_steps_to_go = self._min_steps_to_go()
+        min_steps_to_go = self.get_min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
         self.min_steps_to_go = min_steps_to_go
 
@@ -91,10 +89,11 @@ class AbfahrtEnv(gym.Env):
         self.active_passengers = active_passengers
         # print(active_passengers)
         done = bool(active_passengers == 0)
-        if self.step_count > 1000: # stop after 500 steps, because aint nobody got time for that
+        if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
             done = True
             reward = -5
-
+        # print(done)
+        # print(self.step_count)
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):
@@ -109,7 +108,7 @@ class AbfahrtEnv(gym.Env):
                 next_stop_idx = np.argmax([train.station.vector[n:] @ s.vector[:n] for s in train.station.reachable_stops])
                 train.reroute_to(train.station.reachable_stops[next_stop_idx])
 
-    def _min_steps_to_go(self):
+    def get_min_steps_to_go(self):
         c = 0
         for st in self.trains + self.stations:
             s = st.destination if isinstance(st, objects.Train) else st
@@ -121,7 +120,7 @@ class AbfahrtEnv(gym.Env):
         if self.resets % (self.config.batch_size + len(self.eval_envs)) == 0 and self.mode != "inference":
             for _ in range(self.config.batch_size):
                 env = EnvBlueprint()
-                env.random(n_max_stations=10)
+                env.random(n_max_stations=30)
                 self.train_envs.append(env)
 
         if self.mode == "train":
@@ -135,8 +134,8 @@ class AbfahrtEnv(gym.Env):
         elif self.mode == "inference":
             self.routes, self.stations, self.trains = self.inference_env_bp.get()
         self.resets += 1
-        for s in self.stations: s.set_input_vector(n_node_features=self.config.n_node_features, config=self.config)
-        for t in self.trains: t.set_input_vector(n_node_features=self.config.n_node_features, config=self.config)
+        for st in self.stations+self.trains: st.set_input_vector(config=self.config)
+
         self.trains_dict = {int(t): t for t in self.trains}
         self.stations_dict = {int(s): s for s in self.stations}
         edges = self.routes
@@ -144,13 +143,16 @@ class AbfahrtEnv(gym.Env):
         g = networkx.Graph()
         for edge in edges:
             g.add_edge(edge[0], edge[1])
-        self.shortest_path_lenghts = dict(networkx.shortest_path_length(g))
-        self.min_steps_to_go = self._min_steps_to_go()
+
+        self.init_shortest_path_lengths = dict(networkx.shortest_path_length(g))
+        self.shortest_path_lenghts = self.init_shortest_path_lengths
+
+        self.min_steps_to_go = self.get_min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
         self.step_count = 0
         return self.get_observation()
 
-    def get_observation(self):
+    def get_observation(self, return_type="array"):
         n_stations = len(self.stations)
         edge_index_connections0 = self.routes[0]
         edge_index_connections1 = self.routes[1]
@@ -178,33 +180,53 @@ class AbfahrtEnv(gym.Env):
                 edge_index_destination1 += [int(p.destination)]
                 n_passenger += 1
 
-        edge_index_connections0 = np.resize(edge_index_connections0, 25_000)
-        edge_index_connections1 = np.resize(edge_index_connections1, 25_000)
-        edge_index_destination0 = np.asarray(edge_index_destination0)
-        edge_index_destination0 = np.resize(edge_index_destination0, 25_000)
-        edge_index_destination1 = np.asarray(edge_index_destination1)
-        edge_index_destination1 = np.resize(edge_index_destination1, 25_000)
-        edge_index_trains0 =  np.asarray(edge_index_trains0)
-        edge_index_trains0 = np.resize(edge_index_trains0, 25_000)
-        edge_index_trains1 = np.asarray(edge_index_trains1)
-        edge_index_trains1 = np.resize(edge_index_trains1, 25_000)
+        input_vectors = np.hstack([s.get_encoding() for s in self.stations + self.trains])
 
-        input_vectors = np.hstack([s.get_encoding() for s in self.stations+self.trains])
-        input_vectors = np.resize(input_vectors, 50_000)
+        if self.training != "mcts":
+            edge_index_connections0 = np.resize(edge_index_connections0, 25_000)
+            edge_index_connections1 = np.resize(edge_index_connections1, 25_000)
+            edge_index_destination0 = np.asarray(edge_index_destination0)
+            edge_index_destination0 = np.resize(edge_index_destination0, 25_000)
+            edge_index_destination1 = np.asarray(edge_index_destination1)
+            edge_index_destination1 = np.resize(edge_index_destination1, 25_000)
+            edge_index_trains0 =  np.asarray(edge_index_trains0)
+            edge_index_trains0 = np.resize(edge_index_trains0, 25_000)
+            edge_index_trains1 = np.asarray(edge_index_trains1)
+            edge_index_trains1 = np.resize(edge_index_trains1, 25_000)
 
-        return np.hstack((
-            edge_index_connections0,
-            edge_index_connections1,
-            edge_index_destination1,  # ###weil die information von zielbahnhof zu aktuellem bahnhof fließen muss
-            edge_index_destination0,
-            edge_index_trains0,
-            edge_index_trains1,
-            input_vectors,
-            n_trains,
-            n_passenger,
-            n_edge_connections,
-            n_stations
-        ))
+            input_vectors = np.resize(input_vectors, 50_000)
+            assert None not in input_vectors, f"None in input_vectors in indices: {np.where(None == input_vectors)}"
 
-    def get_snapshot(self):
-        return dumps(self)
+            obs = np.hstack((
+                edge_index_connections0,
+                edge_index_connections1,
+                edge_index_destination1,  # ###weil die information von zielbahnhof zu aktuellem bahnhof fließen muss
+                edge_index_destination0,
+                edge_index_trains0,
+                edge_index_trains1,
+                input_vectors,
+                n_trains,
+                n_passenger,
+                n_edge_connections,
+                n_stations
+            ))
+
+            assert None not in obs, f"None in obs in indices: {np.where(None == obs)}"
+
+        else:
+            eit = np.vstack((edge_index_trains0, edge_index_destination1))
+            eic = np.vstack((edge_index_connections0, edge_index_connections1))
+            eid = np.vstack((edge_index_destination1, edge_index_destination0))
+            edge_index_connections = torch.Tensor(eic).long()
+            edge_index_trains = torch.Tensor(eit).long()
+            edge_index_destinations = torch.Tensor(eid).long()
+            input_vectors = torch.Tensor(input_vectors).float()
+            input_vectors = torch.reshape(input_vectors, ((n_stations + n_trains), self.config.n_node_features)).float()
+
+            batch = torch.zeros(len(input_vectors), dtype=torch.int64)
+
+            return input_vectors, edge_index_connections, edge_index_destinations, edge_index_trains, batch
+        return obs
+
+    # def get_snapshot(self):
+    #     return dumps(self)

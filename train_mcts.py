@@ -9,17 +9,19 @@ import utils
 from tqdm import tqdm
 
 
-def train_mcts(env, mcts_trainer, ppo_model):
+def train_mcts(env, mcts_trainer):
     env.training = "mcts"
-    env = mcts.MCTSWrapper(env)
+
     observation = env.reset()
+    env = mcts.MCTSWrapper(env)
     snapshot = env.get_snapshot()
     root = mcts.Root(snapshot, observation)
     mcts_trainer.learn(root)
 
 
-def train_ppo(env, mcts_model, ppo_model):
+def train_ppo(env, ppo_model):
     # env.set_training(mcts_model=mcts_model)
+    env.reset()
     env.training = "ppo"
     ppo_model.learn(config.total_steps, reset_num_timesteps=False)
 
@@ -51,15 +53,27 @@ if __name__ == '__main__':
     mcts_trainer = mcts.Trainer(train_env, value_net, pi_net, ppo_model.predict, config)
 
     train_env.get_ppo_action = ppo_model.predict
-    train_env.get_mcts_action = mcts_trainer.predict
+    train_env.get_mcts_action = mcts_trainer.mcts.predict
     eval_env.get_ppo_action = ppo_model.predict
-    eval_env.get_mcts_action = mcts_trainer.predict
+    eval_env.get_mcts_action = mcts_trainer.mcts.predict
 
-    for i in tqdm(range(n_episodes)):
-        if i % 2 == 0:
-            train_mcts(train_env, mcts_trainer, ppo_model)
-        else:
-            train_ppo(train_env, mcts_trainer, ppo_model)
+    # for i in tqdm(range(n_episodes)):
+    #     if i % 2 == 0:
+    #         train_mcts(train_env, mcts_trainer)
+    #     else:
+    #         train_ppo(train_env, ppo_model)
+    #
+    #     if i % n_episodes_per_eval == 0:
+    #         eval_both(train_env, mcts_trainer, ppo_model)
 
-        if i % n_episodes_per_eval == 0:
-            eval_both(train_env, mcts_trainer, ppo_model)
+    import cProfile
+    import pstats
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    for _ in tqdm(range(5)):
+        train_mcts(train_env, mcts_trainer)
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats('cumtime')
+    stats.print_stats()
+
