@@ -7,9 +7,11 @@ import combined_policy.common_policy as cp
 from env import AbfahrtEnv
 import utils
 from tqdm import tqdm
+import torch
 
 
-def train_mcts(env, mcts_trainer):
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def train_mcts(env, mcts_trainer, ppo_model):
     env.training = "mcts"
 
     observation = env.reset()
@@ -47,14 +49,15 @@ if __name__ == '__main__':
     # eval_env = make_vec_env(lambda: eval_env, n_envs=1)
     # eval_env = VecNormalize(eval_env, norm_obs=False, gamma=config.gamma, training=False)
 
-    value_net = cp.ValueNet(config)
-    pi_net = mcts.PolicyNet(config)
+    value_net = cp.ValueNet(config).to(device)
+    pi_net = mcts.PolicyNet(config).to(device)
     ppo_model = ppo.get_model(train_env, config=config, value_net=value_net)
     mcts_trainer = mcts.Trainer(train_env, value_net, pi_net, ppo_model.predict, config)
 
     train_env.get_ppo_action = ppo_model.predict
     train_env.get_mcts_action = mcts_trainer.mcts.predict
     eval_env.get_ppo_action = ppo_model.predict
+
     eval_env.get_mcts_action = mcts_trainer.mcts.predict
 
     # for i in tqdm(range(n_episodes)):
@@ -76,4 +79,5 @@ if __name__ == '__main__':
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('cumtime')
     stats.print_stats()
+
 

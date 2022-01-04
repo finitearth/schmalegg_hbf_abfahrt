@@ -46,7 +46,7 @@ class EnvBlueprint:
         for l in single_lines:
             if l == "" or l == " ": continue
             ll = l.split(" ")
-            routes.add(stations_dict[ll[1]], stations_dict[ll[2]])
+            routes.add( stations_dict[ll[1]], stations_dict[ll[2]], stations_dict[ll[0]], stations_dict[ll][3], stations_dict[ll][4])
 
         single_trains = trains_text.split('\n')
         train_list = []
@@ -84,9 +84,14 @@ class EnvBlueprint:
             stations_dict[str(station["name"])] = Station(station["capacity"], station["name"])
         stations_list = [s for s in stations_dict.values()]
 
-        for route in env_dict["routes"]:
+        for id, route in enumerate(env_dict["routes"]):
+            max_capacity = 10 
+            capacity =  max(1, int(max_capacity*random.random()))
+            max_length = 15
+            length = max_length*random.random()
             routes.add(
-                stations_dict[str(route[0])], stations_dict[str(route[1])]
+                stations_dict[str(route[0])], stations_dict[str(route[1])], id, capacity, length
+                
             )
 
         passengers = []
@@ -101,7 +106,7 @@ class EnvBlueprint:
 
         trains = []
         for i, train in enumerate(env_dict["trains"]):
-            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i)))
+            trains.append(Train(stations_dict[str(train["station"])], train["capacity"], name=str(i), speed=1))
 
         # self.name = env_dict["name"]
         self.passengers = passengers
@@ -155,8 +160,12 @@ class EnvBlueprint:
             stations.append(Station(capacity=capacity, name=i))
         self.stations = stations
         routes = Routes()
-        for e in edges:
-            routes.add(stations[e[0]], stations[e[1]])
+        for i,e in enumerate(edges):
+            max_capacity = 10 
+            capacity =  max(1, int(max_capacity*random.random()))
+            max_length = 15
+            length = max_length*random.random()
+            routes.add(stations[e[0]], stations[e[1]], i, capacity, length)
         self.routes = routes.get_all_routes()
 
         n_passenger_group_max = 1
@@ -180,7 +189,7 @@ class EnvBlueprint:
         for i in range(n_trains):  # TODO wildcard trains
             station = random.choice(stations)
             capacity = 100  # random.randint(1, 10)
-            train = Train(station, capacity, name=str(i))
+            train = Train(station, capacity, name=str(i), speed=1)
             trains.append(train)
         self.trains = trains
 
@@ -225,7 +234,10 @@ class Routes:
         self.station1s = []
         self.station2s = []
 
-    def add(self, station1, station2):
+    def add(self, station1, station2, id, capacity, length):
+        self.id = id
+        self.capacity = capacity
+        self.length = length
         assert isinstance(station1, Station), f"{station1} is not of type Station"
         assert isinstance(station2, Station), f"{station2} is not of type Station"
         if station1 == station2 or station1 in station2.reachable_stops: return
@@ -255,9 +267,9 @@ class PassengerGroup:
 
 
 class Train:
-    def __init__(self, station, capacity, name):
+    def __init__(self, station, capacity, name, speed):
         assert isinstance(station, Station), f"{station} is not of type Station"
-        self.speed = 1
+        self.speed = 1 #speed 
         self.station = station
         self.destination = None
         self.capacity = capacity
