@@ -7,6 +7,7 @@ from gym.spaces import Box
 import objects
 from objects import EnvBlueprint
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class AbfahrtEnv(gym.Env):
     def __init__(self, config, mode="eval", using_mcts=False):
@@ -212,7 +213,7 @@ class AbfahrtEnv(gym.Env):
             ))
 
             assert None not in obs, f"None in obs in indices: {np.where(None == obs)}"
-
+            return obs
         else:
             eit = np.vstack((edge_index_trains0, edge_index_destination1))
             eic = np.vstack((edge_index_connections0, edge_index_connections1))
@@ -225,8 +226,8 @@ class AbfahrtEnv(gym.Env):
 
             batch = torch.zeros(len(input_vectors), dtype=torch.int64)
 
-            return input_vectors, edge_index_connections, edge_index_destinations, edge_index_trains, batch
-        return obs
+            return input_vectors.to(device), edge_index_connections.to(device), edge_index_destinations.to(device), edge_index_trains.to(device), batch.to(device)
+        
 
     # def get_snapshot(self):
     #     return dumps(self)

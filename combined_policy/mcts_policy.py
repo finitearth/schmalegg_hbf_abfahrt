@@ -128,7 +128,7 @@ class MCTS:
         return root
 
     def backpropagate(self, search_path, value):
-        if isinstance(value, torch.Tensor): value = value.detach().numpy()
+        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
 
         for node in reversed(search_path):
             node.value_sum += value
