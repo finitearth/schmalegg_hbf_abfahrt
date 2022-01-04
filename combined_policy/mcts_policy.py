@@ -110,7 +110,7 @@ class MCTS:
             done = False
             while not done:  # node.is_leaf():for _ in range(n_steps):  #
                 c += 1
-                print(c)
+                
                 node = node.select_best_leaf()
                 search_path.append(node)
 
@@ -221,6 +221,7 @@ class MCTSWrapper(Wrapper):
         self.load_snapshot(snapshot)
 
         observation, reward, done, info = self.step(mcts_action)
+        print(int(self.env.trains[0].station))
         next_snapshot = self.get_snapshot()
 
         return next_snapshot, observation, reward, done, info
