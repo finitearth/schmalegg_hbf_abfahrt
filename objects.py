@@ -61,7 +61,7 @@ class EnvBlueprint:
         for p in passengers_text:
             if p == "" or p == " ": continue
             pp = p.split(" ")
-            ppp = PassengerGroup(stations_dict[pp[2]], pp[3], pp[4])
+            ppp = PassengerGroup(start_station=stations_dict[pp[1]], destination=stations_dict[pp[2]], n_people=pp[3], target_time = pp[4])
             passenger.append(ppp)
             stations_dict[pp[1]].passengers.append(ppp)
 

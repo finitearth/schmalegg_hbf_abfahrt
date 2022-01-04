@@ -145,13 +145,14 @@ class MCTSWrapper(Wrapper):
         # g = networkx.Graph()
         # for edge in edges:
         #     g.add_edge(edge[0], edge[1])
+        step_count =  self.env.step_count
         text = {
             "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
             "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed} for train in
                        self.env.trains],
             "passengers": [],
             "stations": [],
-            "step_count": self.env.step_count}
+            "step_count": step_count}
         # "shortest_paths": self.env.shortest_path_lenghts}
 
         for st in self.env.trains + self.env.stations:
