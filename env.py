@@ -235,11 +235,10 @@ class AbfahrtEnv(gym.Env):
 
             return input_vectors.to(device), edge_index_connections.to(device), edge_index_destinations.to(device), edge_index_trains.to(device), batch.to(device)
         
-    def render(self):
-        def render_frame(self, eval_env, step):
-            routes = eval_env.routes
-            trains = eval_env.trains
-            stations = eval_env.stations
+    def render(self, mode="human", **kwargs):
+            routes = self.routes
+            trains = self.trains
+            stations = self.stations
             graph = list(zip(routes[0], routes[1]))
             nx_graph = nx.Graph()
             for node in set(routes[0]):
@@ -266,8 +265,8 @@ class AbfahrtEnv(gym.Env):
 
             black = (0, 0, 0)
 
-            d = ImageDraw.Draw(im)
-            d.text((28, 36), f"Iteration {self.n_calls}\nStep {step}", fill=black)
+            # d = ImageDraw.Draw(im)
+            # d.text((28, 36), f"Iteration {self.n_calls}\nStep {step}", fill=black)
 
             point_map = {0: (333, 323), 1: (533, 145), 2: (355, 100), 3: (120, 364), 4: (177, 266), 5: (365, 214),
                          6: (470, 409)}

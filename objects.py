@@ -193,7 +193,7 @@ class EnvBlueprint:
             trains.append(train)
         self.trains = trains
 
-    def render(self):
+    def render(self, mode="human"):
         edges = self.routes
         edges = list(zip(edges[0], edges[1]))
         graph = nx.Graph()
