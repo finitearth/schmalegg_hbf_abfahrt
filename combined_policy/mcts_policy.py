@@ -94,10 +94,10 @@ class MCTS:
         return actions
 
     def run(self, root):
-        self.env.load_snapshot(root.snapshot)
+        # self.env.load_snapshot(root.snapshot)
         obs = root.observation
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
-        actions = self.env.get_possible_mcts_actions()
+        actions = self.env.get_possible_mcts_actions(root.snapshot)
 
         action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
@@ -113,13 +113,15 @@ class MCTS:
                 print(c)
                 node = node.select_best_leaf()
                 search_path.append(node)
+
                 parent = node.parent
                 action = node.action
                 next_snapshot, obs, reward, done, info = self.env.get_result(parent.snapshot, action)
+                node.snapshot = next_snapshot
                 input, eic, eid, eit, batch = obs
-                self.env.load_snapshot(next_snapshot)
-                actions = self.env.get_possible_mcts_actions()
+                actions = self.env.get_possible_mcts_actions(node.snapshot)
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
+
                 node.expand(actions, action_probs)
                 value = self.value_net(input, eic, eid, eit, batch)
                 node.value = value
@@ -213,11 +215,9 @@ class MCTSWrapper(Wrapper):
         self.env.step_count = 0
 
     def step(self, mcts_action):
-
         return self.env.step(mcts_action)
 
     def get_result(self, snapshot, mcts_action):
-
         self.load_snapshot(snapshot)
 
         observation, reward, done, info = self.step(mcts_action)
@@ -225,8 +225,8 @@ class MCTSWrapper(Wrapper):
 
         return next_snapshot, observation, reward, done, info
 
-    def get_possible_mcts_actions(self):
-
+    def get_possible_mcts_actions(self, snapshot):
+        self.load_snapshot(snapshot)
         # trains_start = [int(t.station) for t in self.env.trains]
         # g = self.env.graph
         actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
