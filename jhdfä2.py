@@ -17,7 +17,18 @@ env_bp.get()
 # # observation = env.reset()
 # # mcts.something(observation, env, ppo_model)
 # env_bp.render()
-
 g = (env_bp.graph)
+d = nx.spring_layout(g, dim=2)#, key=lambda x: x.key()))
+i = 0
+try:
+    while True:
+        print(f"P_{i}={d[i]}")
+        i+=1
+except:
+    pass
+env_bp.render()
 
-print(nx.spring_layout(g, dim=4))
+
+
+
+

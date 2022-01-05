@@ -20,11 +20,11 @@ def train_mcts(env, mcts_trainer):
     snapshot = env.get_snapshot()
     root = mcts.Root(snapshot, observation)
     root = mcts_trainer.mcts.run(root)
-    node = root
-    while not node.is_leaf():
-        node = max([(c, c.value_sum) for c in node.children], key=lambda x: x[1])[0]
-        env.get_result(node)
-        env.render()
+    # node = root
+    # while not node.is_leaf():
+    #     node = max([(c, c.value_sum) for c in node.children], key=lambda x: x[1])[0]
+    #     env.get_result(node)
+    #     env.render()
 
 
 def train_ppo(env, ppo_model):
@@ -66,24 +66,13 @@ if __name__ == '__main__':
 
     eval_env.get_mcts_action = mcts_trainer.mcts.predict
 
-    # for i in tqdm(range(n_episodes)):
-    #     if i % 2 == 0:
-    #         train_mcts(train_env, mcts_trainer)
-    #     else:
-    #         train_ppo(train_env, ppo_model)
-    #
-    #     if i % n_episodes_per_eval == 0:
-    #         eval_both(train_env, mcts_trainer, ppo_model)
+    for i in tqdm(range(n_episodes)):
+        if i % 2 == 0:
+            train_mcts(train_env, mcts_trainer)
+        else:
+            train_ppo(train_env, ppo_model)
 
-    import cProfile
-    import pstats
-
-    profiler = cProfile.Profile()
-    profiler.enable()
-    for _ in tqdm(range(2)):
-        train_mcts(train_env, mcts_trainer)
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats('cumtime')
-    # stats.print_stats()
+        if i % n_episodes_per_eval == 0:
+            eval_both(train_env, mcts_trainer, ppo_model)
 
 

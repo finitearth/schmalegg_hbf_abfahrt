@@ -164,7 +164,6 @@ def convert_observation(obs, config):
 
     return b.x.to(device), b.edge_index_connections.to(device), b.edge_index_destinations.to(device), b.edge_index_trains.to(device), b.batch.to(device)
 
-
 class CustomData(Data):
     def __init__(self, x=None, edge_index_connections=None, edge_index_destinations=None, edge_attr=None,
                  edge_index_trains=None, **kwargs):
@@ -174,3 +173,10 @@ class CustomData(Data):
         self.edge_index_destinations = edge_index_destinations
         self.edge_index_connections = edge_index_connections
         self.edge_index_trains = edge_index_trains
+
+
+def set_node_attributes(graph, stations, config):
+    d = nx.drawing.layout.shell_layout(graph, dim=config.n_node_features)
+    for s in stations:
+        s.set_node_attributes(d[int(s)])
+

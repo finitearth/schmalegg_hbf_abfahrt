@@ -110,8 +110,6 @@ class MCTS:
             node = root.select_best_leaf()
             done = False
             while not done:  # for actions in actionss:
-                print(2)
-
                 node = node.select_best_leaf()
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
@@ -122,13 +120,12 @@ class MCTS:
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
                 node.expand(actions, action_probs)
                 while node.is_dead_end():
-                    print("1")
                     node.value_sum -= 1
                     node = node.parent
                     continue
 
-                print(f"step: {node.snapshot['step_count']}; action: {node.action}")
-                self.env.render()
+                # print(f"step: {node.snapshot['step_count']}; action: {node.action}")
+                # self.env.render()
         Node.nodes = []
         return root
 
@@ -314,8 +311,10 @@ class Node:
         self.value_sum = 0
         self.action_probs = None
         self.snapshot = None
-        self.hasher = str(parent.snapshot["stations"]) + str(parent.snapshot["trains"]) + str(self.action) \
-            if parent else "root"
+        self.hasher = str(parent.snapshot["stations"]) + \
+                      str(parent.snapshot["trains"]) + \
+                      str(parent.snapshot["passengers"]) \
+                      + str(self.action)  if parent else "root"
 
     def set_snapshot(self, snapshot):
         self.snapshot = snapshot

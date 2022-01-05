@@ -109,7 +109,6 @@ class AbfahrtEnv(gym.Env):
         # if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
         #     done = True
         #     reward = -5
-        if done: print(":)")
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):
