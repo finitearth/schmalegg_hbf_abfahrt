@@ -11,14 +11,20 @@ import torch
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 def train_mcts(env, mcts_trainer):
     env.training = "mcts"
-
     observation = env.reset()
     env = mcts.MCTSWrapper(env)
     snapshot = env.get_snapshot()
     root = mcts.Root(snapshot, observation)
-    mcts_trainer.learn(root)
+    root = mcts_trainer.mcts.run(root)
+    node = root
+    while not node.is_leaf():
+        node = max([(c, c.value_sum) for c in node.children], key=lambda x: x[1])[0]
+        env.get_result(node)
+        env.render()
 
 
 def train_ppo(env, ppo_model):
@@ -38,7 +44,7 @@ batch_size = 10
 n_steps = 20
 if __name__ == '__main__':
     config = utils.ConfigParams()
-    train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)
+    train_env = AbfahrtEnv(config=config, mode="render", using_mcts=True)#train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)
     train_env.reset()
     # train_env = mcts.MCTSWrapper(train_env)
     # train_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
@@ -74,10 +80,10 @@ if __name__ == '__main__':
 
     profiler = cProfile.Profile()
     profiler.enable()
-    for _ in tqdm(range(5)):
+    for _ in tqdm(range(2)):
         train_mcts(train_env, mcts_trainer)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats('cumtime')
-    stats.print_stats()
+    # stats.print_stats()
 
 

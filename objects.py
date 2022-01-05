@@ -139,9 +139,9 @@ class EnvBlueprint:
             sc.input_vector = so.input_vector
 
         trains = [Train(stations[int(t.station)], t.capacity, t.name, t.speed) for t in self.trains]
-        # self.graph = nx.Graph()
-        # for s1, s2 in zip(self.routes[0], self.routes[1]):
-        #     self.graph.add_edge(s1, s2)
+        self.graph = nx.Graph()
+        for s1, s2 in zip(self.routes[0], self.routes[1]):
+            self.graph.add_edge(s1, s2)
         return self.routes, stations, trains
 
     def random(self, n_max_stations):
@@ -234,10 +234,10 @@ class Routes:
         self.station1s = []
         self.station2s = []
 
-    def add(self, station1, station2, id, capacity, length):
-        self.id = id
-        self.capacity = capacity
-        self.length = length
+    def add(self, station1, station2, id=None, capacity=None, length=None):
+        # self.id = id
+        # self.capacity = capacity
+        # self.length = length
         assert isinstance(station1, Station), f"{station1} is not of type Station"
         assert isinstance(station2, Station), f"{station2} is not of type Station"
         if station1 == station2 or station1 in station2.reachable_stops: return
@@ -304,7 +304,9 @@ class Train:
 
     def reroute_to(self, destination):
         assert isinstance(destination, Station), f"{destination} is not of type Station"
+        assert destination in self.station.reachable_stops, f"Station {int(destination)} not reachable from Station {int(self.station)}"
         self.destination = destination
 
     def __int__(self):
         return int(self.name)
+

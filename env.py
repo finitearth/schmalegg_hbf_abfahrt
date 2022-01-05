@@ -55,6 +55,7 @@ class AbfahrtEnv(gym.Env):
     def step(self, action):
         self.step_count += 1
         # print(self.trains[0].station.__int__(),self.step_count)
+        # print(self.active_passengers)
         if self.training == "ppo":
             ppo_action = action
             mcts_action = None
@@ -63,7 +64,9 @@ class AbfahrtEnv(gym.Env):
             mcts_action = action
         else: raise ValueError("._:")
         n = self.config.action_vector_size//2
-        if ppo_action is None: ppo_action = self.get_ppo_action(self.get_observation())[0]
+        if ppo_action is None:
+            ppo_action = self.get_ppo_action(self.get_observation())
+
         if mcts_action is None and (self.mcts_list is None or len(self.mcts_list) < 2):
             self.training = "mcts"
             self.mcts_list = self.get_mcts_action(self)
@@ -73,24 +76,27 @@ class AbfahrtEnv(gym.Env):
             mcts_action = self.mcts_list[1]
             self.mcts_list.pop(0)
 
-
-
         for i, station in enumerate(self.stations):
             station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
+
+        self.rerouting_trains(mcts_action)
 
         for train in self.trains: # onboarding
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
-            while len(train.passengers) < train.capacity and len(train.station.passengers) != 0:
-                dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
-
+            while len(train.passengers) < train.capacity and len(train.station.passengers) > 0:
+                try:
+                    dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
+                except Exception as e:
+                    print(len(ppo_action.shape))
+                    raise e
                 idx = np.argmax(dot_products)
 
                 if True:#dot_products[idx]:
                     train.onboard(train.station.passengers[idx])
                 else: break
 
-        self.rerouting_trains(mcts_action)
+
 
         min_steps_to_go = self.get_min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
@@ -100,10 +106,10 @@ class AbfahrtEnv(gym.Env):
         reward += (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
         self.active_passengers = active_passengers
         done = bool(active_passengers == 0)
-        if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
-            done = True
-            reward = -5
-        # print(done)
+        # if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
+        #     done = True
+        #     reward = -5
+        if done: print(":)")
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):
@@ -274,15 +280,15 @@ class AbfahrtEnv(gym.Env):
                          6: (470, 409)}
             for s in stations:
                 s_ = int(s)
-                if s.vector is not None:
-                    p0, p1 = int(s.vector[0] * 50), int(s.vector[1] * 50)
-                    d, im = utils.draw_arrow(im, (point_map[s_][0] - 50, point_map[s_][1]),
-                                             (point_map[s_][0] - 50 + p0, point_map[s_][1] + p1), color=(0, 0, 255),
-                                             thickness=3)
-                    p0, p1 = int(s.vector[2] * 50), int(s.vector[3] * 50)
-                    d, im = utils.draw_arrow(im, (point_map[s_][0] - 100, point_map[s_][1]),
-                                             (point_map[s_][0] - 100 + p0, point_map[s_][1] + p1), color=(255, 0, 0),
-                                             thickness=3)
+                # if s.vector is not None:
+                #     p0, p1 = int(s.vector[0] * 50), int(s.vector[1] * 50)
+                #     d, im = utils.draw_arrow(im, (point_map[s_][0] - 50, point_map[s_][1]),
+                #                              (point_map[s_][0] - 50 + p0, point_map[s_][1] + p1), color=(0, 0, 255),
+                #                              thickness=3)
+                #     p0, p1 = int(s.vector[2] * 50), int(s.vector[3] * 50)
+                #     d, im = utils.draw_arrow(im, (point_map[s_][0] - 100, point_map[s_][1]),
+                #                              (point_map[s_][0] - 100 + p0, point_map[s_][1] + p1), color=(255, 0, 0),
+                #                              thickness=3)
                 if s.passengers:
                     d, im = utils.draw_arrow(im, point_map[s_], (point_map[s_][0], point_map[s_][1] + 25))
                     for i, p in enumerate(s.passengers, start=2):

@@ -10,6 +10,8 @@ from torch_geometric.nn import Linear
 import math
 import random
 from itertools import product as cart_product
+
+import env
 from objects import Station, PassengerGroup, Train
 
 n_simulations = 10
@@ -38,9 +40,9 @@ class Trainer:
         return train_examples
 
     def learn(self, root):
-        for i in range(1):#self.config.n_iters):
+        for i in range(1):  # self.config.n_iters):
             train_examples = []
-            for eps in range(1):#self.config.n_eps):
+            for eps in range(1):  # self.config.n_eps):
                 iteration_train_examples = self.execute_episode(root)
                 train_examples.extend(iteration_train_examples)
 
@@ -84,6 +86,7 @@ class MCTS:
 
     def predict(self, env):
         raise NotImplementedError
+
     #     self.env = MCTSWrapper(env)
     #     snapshot = self.env.get_snapshot()
     #     root = Root(snapshot, self.env.get_observation())
@@ -100,42 +103,48 @@ class MCTS:
         obs = root.observation
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
         actions = self.env.get_possible_mcts_actions(root.snapshot)
-
         action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
 
         for _ in range(n_simulations):
             node = root.select_best_leaf()
-
             done = False
-            while not done:
+            while not done:  # for actions in actionss:
+                print(2)
+
                 node = node.select_best_leaf()
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
-                actions = self.env.get_possible_mcts_actions(node.snapshot)  # node.parent.snapshot
-                action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
-                node.expand(actions, action_probs)
-                if node.is_dead_end: break
                 value = self.value_net(input, eic, eid, eit, batch)
                 node.backpropagate(value)
+                actions = self.env.get_possible_mcts_actions(node.snapshot)
+                action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
+                node.expand(actions, action_probs)
+                while node.is_dead_end():
+                    print("1")
+                    node.value_sum -= 1
+                    node = node.parent
+                    continue
 
+                print(f"step: {node.snapshot['step_count']}; action: {node.action}")
+                self.env.render()
+        Node.nodes = []
         return root
 
 
 class MCTSWrapper(Wrapper):
-    def __init__(self, env):
-        super().__init__(env)
+    def __init__(self, env_):
+        assert isinstance(env_, env.AbfahrtEnv), "bist du dumm"
+        super().__init__(env_)
 
     def get_snapshot(self):
         step_count = deepcopy(self.env.step_count)
         text = {
-            "routes": self.env.routes,  # .get_all_routes(),#[route for route in self.env.routes],
+            "routes": self.env.routes,
             "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed,
                         "destination": int(train.destination) if train.destination is not None else -1,
-                        "vector": train.input_vector}
-                       for train in
-                       self.env.trains],
+                        "name": train.name} for train in self.env.trains],
             "passengers": [],
             "stations": [],
             "step_count": step_count}
@@ -145,12 +154,13 @@ class MCTSWrapper(Wrapper):
                 text["passengers"].append({"destination": int(p.destination),
                                            "n_people": p.n_people,
                                            "target_time": p.target_time,
-                                           "start_station": int(p.start_station)})
+                                           "current": int(st),
+                                           "st": "t" if isinstance(st, Train) else "s"})
 
         for station in self.env.stations:
             text["stations"].append({"name": station.name, "capacity": station.capacity,
-                                     "reachable_stops": [int(s) for s in station.reachable_stops],
-                                     "vector": station.input_vector})
+                                     "reachable_stops": [int(s) for s in station.reachable_stops]})
+            # "vector": station.input_vector})
 
         return text
 
@@ -159,38 +169,45 @@ class MCTSWrapper(Wrapper):
         for station in env_dict["stations"]:
             s = Station(station["capacity"], station["name"])
             stations_dict[int(station["name"])] = s
-            s.input_vector = station["vector"]
-
+            s.set_input_vector(self.config)
         stations_list = [s for s in stations_dict.values()]
 
-        for i, station in enumerate(stations_list):
-            reachable_stops = env_dict["stations"][i]["reachable_stops"]
-            for s in reachable_stops:
-                station.reachable_stops.append(stations_list[int(s)])
+        for i, station in stations_dict.items():
+            rs = env_dict["stations"][i]["reachable_stops"]
+            for s in rs:
+                station.reachable_stops.append(stations_dict[int(s)])
+
+        trains = []
+        for train in env_dict["trains"]:
+            t = Train(station=stations_dict[int(train["station"])], capacity=train["capacity"],
+                      name=train["name"], speed=train["speed"])
+            t.set_input_vector(self.config)
+            destination = train["destination"]
+            if destination != -1:
+                t.destination = (stations_dict[int(destination)])
+            trains.append(t)
 
         passengers = []
         for passenger in env_dict["passengers"]:
             pg = PassengerGroup(stations_dict[int(passenger["destination"])],
                                 passenger["n_people"],
-                                passenger["target_time"],
-                                stations_dict[int(passenger["start_station"])])
+                                passenger["target_time"], 0)
 
-            passengers.append(pg)
-            station = stations_dict[int(passenger["start_station"])]
-            station.passengers.append(pg)
+            st = passenger["st"]
+            if st == "s":
+                station = stations_dict[int(passenger["current"])]
+                station.passengers.append(pg)
+            else:
+                train = trains[int(passenger["current"])]
+                train.passengers.append(pg)
 
-        trains = []
-        for i, train in enumerate(env_dict["trains"]):
-            t = Train(stations_dict[int(train["station"])], train["capacity"], name=str(i), speed=train["speed"])
-            t.input_vector = train["vector"]
-            destination = train["destination"]
-            if destination != -1:
-                t.reroute_to(stations_dict[int(destination)])
-            trains.append(t)
-        # self.env.reset()
+            # stations_dict[int(passenger["start_station"])])
+
+        self.env.active_passengers = sum([len(st.passengers) for st in stations_list])
+        self.env.active_passengers += sum([len(st.passengers) for st in trains])
         self.env.passengers = passengers
         self.env.step_count = env_dict["step_count"]
-        self.env.routes = env_dict["routes"]  # routes.get_all_routes()
+        self.env.routes = env_dict["routes"]
         self.env.trains = trains
         self.env.stations = stations_list
         for st in self.env.trains + self.env.stations: st.set_input_vector(self.config)
@@ -200,24 +217,20 @@ class MCTSWrapper(Wrapper):
 
         self.env.shortest_path_lenghts = self.env.init_shortest_path_lengths
         # self.env.min_steps_to_go = self.env.get_min_steps_to_go()
-        self.env.active_passengers = sum([len(s.passengers) for s in self.env.stations + self.env.trains])
-        self.env.step_count = 0
 
     def step(self, mcts_action):
         return self.env.step(mcts_action)
 
     def get_result(self, node):
         self.load_snapshot(node.parent.snapshot)
-
         observation, reward, done, info = self.step(node.action)
         next_snapshot = self.get_snapshot()
         return next_snapshot, observation, reward, done, info
 
     def get_possible_mcts_actions(self, snapshot):
         self.load_snapshot(snapshot)
-
         actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
-                   for t in self.env.trains]
+                   for t in self.env.trains]  # ALARM IM POLICYNETWORK MUSS ANDERES ALS T SEIN -.-
         actions = list(cart_product(*actions))
         actions = torch.tensor(actions)
         return actions
@@ -272,15 +285,14 @@ class PolicyNet(nn.Module):
             x = lin(x)
         x = self.lin1(x)
 
-        dest_vecs = x[:, :, self.n:]  # x[:, self.n:]#
-        start_vecs = x[:, :, :self.n]  # x[:, :self.n]#
+        dest_vecs = x[:, :, self.n:]
+        start_vecs = x[:, :, :self.n]
 
         return start_vecs, dest_vecs
 
     def get_prob(self, actions, start_vecs, dest_vecs):
-
         # batches, action, stations, bool_starting
-        starts = start_vecs[:, actions[:, :, :, 0].flatten()]
+        starts = start_vecs[:, actions[:, :, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
         dests = dest_vecs[:, actions[:, :, :, 1].flatten()]
         # Einstein Summation :)
         probs = torch.einsum('bij,bij->bi', starts, dests).to(device)
@@ -290,10 +302,10 @@ class PolicyNet(nn.Module):
 
 
 class Node:
-    nodes = set()
+    nodes = list()
 
     def __init__(self, parent, action, prior):
-        self.is_dead_end = False
+        self.expanded = False
         self.parent = parent
         self.action = action
         self.prior = prior if not isinstance(prior, torch.Tensor) else prior.cpu().detach().numpy()
@@ -302,7 +314,8 @@ class Node:
         self.value_sum = 0
         self.action_probs = None
         self.snapshot = None
-        self.hasher = str(parent.snapshot) + str(self.action) if parent else 0
+        self.hasher = str(parent.snapshot["stations"]) + str(parent.snapshot["trains"]) + str(self.action) \
+            if parent else "root"
 
     def set_snapshot(self, snapshot):
         self.snapshot = snapshot
@@ -313,10 +326,15 @@ class Node:
     def is_root(self):
         return self.parent is None
 
+    def is_dead_end(self):
+        if not self.expanded: return False
+        if len(self.children) < 1: return True
+        for child in self.children:
+            if not child.is_dead_end(): return False
+        return True
+
     def get_ucb_score(self):
-        prior_score = self.prior * \
-                      math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
-        return prior_score + self.value_sum
+        return self.value_sum + self.prior * math.sqrt(self.parent.visit_count / (self.visit_count + 1))
 
     def select_best_leaf(self):
         if self.is_leaf(): return self
@@ -325,13 +343,14 @@ class Node:
         return best_child.select_best_leaf()
 
     def expand(self, actions, priors):
+        self.expanded = True
         for action, prior in zip(actions, priors):
             node = Node(self, action, prior)
             if node not in Node.nodes:
-                Node.nodes.add(node)
+                Node.nodes.append(node)
                 self.children.add(node)
 
-        if len(self.children) == 0: self.is_dead_end = True
+
 
     def backpropagate(self, value):
         if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
@@ -343,7 +362,7 @@ class Node:
         return hash(self.hasher)
 
     def __eq__(self, other):
-        return hash(self) == hash(other)
+        return self.hasher == other.hasher
 
 
 class Root(Node):
@@ -355,3 +374,9 @@ class Root(Node):
 
     def backpropagate(self, value):
         self.value_sum += value
+
+    def is_dead_end(self):
+        if self.expanded:
+            raise Exception("No valid routes found without getting into dead ends :/")
+        else:
+            return False

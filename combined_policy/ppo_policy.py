@@ -79,6 +79,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         with torch.no_grad():
             action = self.policy_net(x, eic, eid, eit, batch)
             # action = action.numpy()
+        action = action.flatten()
         return action
 
 
