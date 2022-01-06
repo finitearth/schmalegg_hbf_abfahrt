@@ -75,7 +75,7 @@ if __name__ == '__main__':
     profiler = cProfile.Profile()
     profiler.enable()
     c= 0
-    for _ in tqdm(range(100)):
+    for _ in tqdm(range(10)):
         # try:
             train_mcts(train_env, mcts_trainer)
         # except Exception as e:

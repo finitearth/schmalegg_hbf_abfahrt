@@ -6,12 +6,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 from gym import Wrapper
+from torch_geometric.loader import DataLoader
 from torch_geometric.nn import Linear
 import math
 import random
 from itertools import product as cart_product
 
 import env
+import utils
 from objects import Station, PassengerGroup, Train
 
 n_simulations = 10
@@ -28,50 +30,56 @@ class Trainer:
         self.config = config
         self.mcts = MCTS(env, value_net, policy_net,
                          self.config, get_ppo_action)
-        self.train_examples_history = []
+        self.pi_examples = []
+        self.v_examples = []
+        self.pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
+        self.v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
 
     def execute_episode(self, root):
-        train_examples = []
+        root = self.mcts.search(root)
+        pi_examples = []
+        v_examples = []
+        node = root
+        while not node.is_leaf():
+            best_child = node.get_best_child()
+            obs = node.observation
+            input, eic, eit, eid = utils.convert_observation(obs, self.config)
+            actions = node.actions
+            best_action = best_child.action
+            one_hot = (actions == best_action)*1
+            pi_example = utils.CustomData(x=input, eic=eic, eit=eit, eid=eid, actions=actions, one_hot=one_hot)
+            pi_examples.append(pi_example)
 
-        root = self.mcts.run(root)
-        # next_snapshot, observation, reward, done, _ = self.env.get_result(root)
-        # train_examples.append(([observation], root.action_probs))
+            value = node.value_sum
+            v_example = utils.CustomData(x=input, eic=eic, eit=eit, eid=eid, value=value)
+            v_examples.append(v_example)
 
-        return train_examples
+            node = best_child
 
-    def learn(self, root):
-        for i in range(1):  # self.config.n_iters):
-            train_examples = []
-            for eps in range(1):  # self.config.n_eps):
-                iteration_train_examples = self.execute_episode(root)
-                train_examples.extend(iteration_train_examples)
+        return pi_examples, v_examples
 
-            random.shuffle(train_examples)
-            self.train(train_examples)
-
-    def train(self, examples):
-        pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
-        v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
+    def train(self, pi_examples, v_examples):
+        pi_data_loader = DataLoader(pi_examples, batch_size=self.config.batch_size_pi, shuffle=True)
+        v_data_loader = DataLoader(v_examples, batch_size=self.config.batch_size_v, shuffle=True)
 
         for epoch in range(self.config.n_epochs):
-            batch_idx = 0
-            while batch_idx < len(examples) // self.config.batch_size:
-                sample_ids = np.random.randint(
-                    len(examples), size=self.config.batch_size)
-                observation, pis, vs = zip(*[examples[i] for i in sample_ids])
-                target_pis = torch.FloatTensor(pis)
-                target_vs = torch.FloatTensor(vs)
-
-                pred_pis = self.policy_net.predict(observation)
-                pred_vs = self.value_net.predict(observation)
-
+            pi_losses, v_losses = [], []
+            for input, eic, eit, eid, actions, target_pis in iter(pi_data_loader):
+                pred_pis = self.policy_net.predict(input, eic, eit, eid, actions)
                 l_pi = nn.CrossEntropyLoss()(pred_pis, target_pis)
+                pi_losses.append(l_pi)
                 l_pi.backward()
-                pi_optim.step()
+                self.pi_optim.step()
 
+            for input, eic, eit, eid, target_vs in iter(v_data_loader):
+                pred_vs = self.value_net.predict(input, eic, eit, eid,)
                 l_v = nn.MSELoss()(pred_vs, target_vs)
+                v_losses.append(l_v)
                 l_v.backward()
-                v_optim.step()
+                self.v_optim.step()
+
+            print(f"Epoch {epoch}/{self.config.n_epochs}, v_loss: {np.mean(v_losses)}, pi_loss: {np.mean(pi_losses)}")
+
 
 
 class MCTS:
@@ -96,7 +104,7 @@ class MCTS:
     #         node = node.select_best_leaf()
     #     return actions
 
-    def run(self, root):
+    def search(self, root):
         self.env.load_snapshot(root.snapshot)
         obs = root.observation
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
@@ -112,6 +120,7 @@ class MCTS:
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
+                node.observation = obs
                 value = self.value_net(input, eic, eid, eit, batch)
                 node.backpropagate(value)
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
@@ -288,6 +297,7 @@ class Node:
     nodes = list()
 
     def __init__(self, parent, action, prior):
+        self.observation = None
         self.expanded = False
         self.parent = parent
         self.action = action
@@ -326,6 +336,10 @@ class Node:
         best_child = max([(c, c.get_ucb_score()) for c in self.children], key=lambda x: x[1])[0]
 
         return best_child.select_best_leaf()
+
+    def get_best_child(self):
+        best_child = max([(c, c.value_sum) for c in self.children], key=lambda x: x[1])[0]
+        return best_child
 
     def expand(self, actions, priors):
         self.expanded = True
