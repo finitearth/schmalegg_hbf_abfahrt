@@ -168,7 +168,7 @@ class EnvBlueprint:
             routes.add(stations[e[0]], stations[e[1]], i, capacity, length)
         self.routes = routes.get_all_routes()
 
-        n_passenger_group_max = 1
+        n_passenger_group_max = 20
         n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
         for _ in range(n_passenger_group):
             station = random.choice(stations)

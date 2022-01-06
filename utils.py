@@ -1,5 +1,7 @@
 import cv2
-from torch_geometric.data import Data
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data.dataloader import default_collate
+from torch_geometric.data import Data, Batch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import add_self_loops
 
@@ -105,6 +107,21 @@ def draw_arrow(im, p0, p1, thickness=1, color=(0, 0, 0)):
     na = cv2.arrowedLine(na, p0, p1, color, thickness)
     im = Image.fromarray(na)
     return ImageDraw.Draw(im), im
+
+
+def collate(batch):
+    # targets = []
+    actions = []
+    for elem in batch:
+        # targets.append(elem.target)
+        actions.append(elem.actions)
+    # target = pad_sequence(targets, batch_first=True)
+    actions = pad_sequence(actions, batch_first=True, padding_value=-1)#.flatten(start_dim=1)
+    actions = actions.squeeze(2)
+    batch = Batch.from_data_list(batch, exclude_keys=["action"])
+    # batch.target = target
+    batch.actions = actions
+    return batch
 
 
 

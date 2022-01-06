@@ -1,3 +1,6 @@
+import sys
+import time
+
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -8,7 +11,7 @@ from env import AbfahrtEnv
 import utils
 from tqdm import tqdm
 import torch
-
+import warnings
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -16,15 +19,18 @@ def train_mcts(env, mcts_trainer):
     pi_examples = []
     v_examples = []
     env = mcts.MCTSWrapper(env)
-    for _ in range(128):
-        for _ in tqdm(range(4)):
-            observation = env.reset()
-            snapshot = env.get_snapshot()
-            env.training = "mcts"
-            root = mcts.Root(snapshot, observation)
-            pi_example, v_example = mcts_trainer.execute_episode(root)
-            pi_examples.extend(pi_example)
-            v_examples.extend(v_example)
+    for _ in range(256):
+        for _ in tqdm(range(32)):
+            try:
+                observation = env.reset()
+                snapshot = env.get_snapshot()
+                env.training = "mcts"
+                root = mcts.Root(snapshot, observation)
+                pi_example, v_example = mcts_trainer.execute_episode(root)
+                pi_examples.extend(pi_example)
+                v_examples.extend(v_example)
+            except mcts.DeadEndException as e:
+                warnings.warn(str(e))
         mcts_trainer.train(pi_examples, v_examples)
 
 
@@ -76,6 +82,8 @@ if __name__ == '__main__':
     #     if i % n_episodes_per_eval == 0:
     #         eval_both(train_env, mcts_trainer, ppo_model)
 
+
     train_mcts(train_env, mcts_trainer)
+
 
 

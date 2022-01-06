@@ -63,21 +63,21 @@ class AbfahrtEnv(gym.Env):
             ppo_action = None
             mcts_action = action
         else: raise ValueError("._:")
-        n = self.config.action_vector_size//2
-        if ppo_action is None:
-            ppo_action = self.get_ppo_action(self.get_observation())
+        n = 2#self.config.action_vector_size//2
+        # if ppo_action is None:
+        #     ppo_action = self.get_ppo_action(self.get_observation())
+        #
+        # if mcts_action is None and (self.mcts_list is None or len(self.mcts_list) < 2):
+        #     self.training = "mcts"
+        #     self.mcts_list = self.get_mcts_action(self)
+        #     self.mcts_list.pop(0)
+        #     self.training = "ppo"
+        # elif mcts_action is None and self.mcts_list is not None:
+        #     mcts_action = self.mcts_list[1]
+        #     self.mcts_list.pop(0)
 
-        if mcts_action is None and (self.mcts_list is None or len(self.mcts_list) < 2):
-            self.training = "mcts"
-            self.mcts_list = self.get_mcts_action(self)
-            self.mcts_list.pop(0)
-            self.training = "ppo"
-        elif mcts_action is None and self.mcts_list is not None:
-            mcts_action = self.mcts_list[1]
-            self.mcts_list.pop(0)
-
-        for i, station in enumerate(self.stations):
-            station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
+        # for i, station in enumerate(self.stations):
+            # station.vector = ppo_action[i * self.action_vector_size:(i + 1) * self.action_vector_size]
 
         self.rerouting_trains(mcts_action)
 
@@ -85,14 +85,12 @@ class AbfahrtEnv(gym.Env):
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) > 0:
-                dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
+                dot_products = [train.station.input_vector[n:] @ p.destination.input_vector[:n] for p in train.station.passengers]
                 idx = np.argmax(dot_products)
 
-                if dot_products[idx]:
+                if dot_products[idx] > -1:
                     train.onboard(train.station.passengers[idx])
                 else: break
-
-
 
         min_steps_to_go = self.get_min_steps_to_go()
         reward = self.config.reward_step_closer * (self.min_steps_to_go - min_steps_to_go)
@@ -131,7 +129,7 @@ class AbfahrtEnv(gym.Env):
         if self.resets % (self.config.batch_size + len(self.eval_envs)) == 0 and self.mode != "inference":
             for _ in range(self.config.batch_size):
                 env = EnvBlueprint()
-                env.random(n_max_stations=10)
+                env.random(n_max_stations=30)
                 self.train_envs.append(env)
 
         if self.mode == "train":
@@ -153,17 +151,15 @@ class AbfahrtEnv(gym.Env):
         g = networkx.Graph()
         for edge in edges:
             g.add_edge(edge[0], edge[1])
-
         self.init_shortest_path_lengths = dict(networkx.shortest_path_length(g))
         self.shortest_path_lenghts = self.init_shortest_path_lengths
-
         utils.set_node_attributes(g, self.stations, self.config)
-
-        for t in self.trains: t.set_input_vector(self.config)
 
         self.min_steps_to_go = self.get_min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
         self.step_count = 0
+
+        for t in self.trains: t.set_input_vector(self.config)
         return self.get_observation()
 
     def get_observation(self, return_type="array"):

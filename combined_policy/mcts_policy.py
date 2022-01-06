@@ -1,16 +1,13 @@
 from copy import deepcopy
 
-import networkx
-from networkx.algorithms.assortativity.pairs import node_attribute_xy
-import numpy as np
 import torch
 import torch.nn as nn
 from gym import Wrapper
 from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader as PyGDataLoader
+from torch.utils.data import DataLoader
 from torch_geometric.nn import Linear
 import math
-import random
 from itertools import product as cart_product
 
 from torch_geometric.utils import add_self_loops, to_dense_batch
@@ -23,6 +20,7 @@ n_simulations = 10
 n_steps = 10
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 
 class Trainer:
@@ -49,9 +47,9 @@ class Trainer:
                 input, eic, eit, eid, batch = node.observation
                 actions = node.possible_actions
                 best_action = best_child.action
-                one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1
-                one_hot = one_hot.long()
-                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions, target=one_hot)
+                # one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1.
+                target = (actions == best_action).all(dim=-1).nonzero(as_tuple=True)[0]
+                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions, target=target)
                 pi_examples.append(pi_example)
 
                 value = node.value_sum
@@ -63,28 +61,28 @@ class Trainer:
         return pi_examples, v_examples
 
     def train(self, pi_examples, v_examples):
-        pi_data_loader = DataLoader(pi_examples, batch_size=32, shuffle=True) #self.config.batch_size_pi
-        v_data_loader = DataLoader(v_examples, batch_size=32, shuffle=True) #self.config.batch_size_v
+        pi_data_loader = DataLoader(pi_examples, batch_size=32, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
+        v_data_loader = PyGDataLoader(v_examples, batch_size=32, shuffle=True) #self.config.batch_size_v
         print(f"Batchcount: {len(v_data_loader)}")
         l_pi_function = nn.CrossEntropyLoss()
         l_v_function = nn.MSELoss()
-        for epoch in range(self.config.n_epochs):
+        n_epochs = 8#self.config.n_epochs):
+        for epoch in range(n_epochs):
             pi_losses, v_losses, pi_acc, v_expvar = [], [], [], []
             for x in iter(pi_data_loader):
                 input, eic, eid, eit, actions, target_pis, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target, x.batch
-                target_pis, _ = to_dense_batch(target_pis, batch)
                 pred_pis = self.policy_net(actions, input, eic, eit, eid, batch)
                 l_pi = l_pi_function(pred_pis, target_pis)
                 pi_losses.append(l_pi)
                 l_pi.backward()
-                # pred_onehot = torch.zeros_like(pred_pis).long()
-                # pred_onehot[:, pred_pis.argmax(dim=1)] = 1
-                # pi_acc.append((pred_onehot.eq(target_pis, dim=-2)/len(pred_onehot)).sum())
+                pred_onehot = torch.argmax(pred_pis, -1)
+                pi_acc.append(sum(pred_onehot==target_pis)/len(pred_onehot))
                 self.pi_optim.step()
 
             for x in iter(v_data_loader):
                 input, eic,  eid, eit, target_vs, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.target, x.batch
                 pred_vs = self.value_net(input, eic, eit, eid, batch)
+                pred_vs = pred_vs.squeeze(1)
                 l_v = l_v_function(pred_vs, target_vs.float())
                 v_losses.append(l_v)
                 l_v.backward()
@@ -92,25 +90,27 @@ class Trainer:
                 exp_var = 1 - torch.var(pred_vs-target_vs)/torch.var(target_vs)
                 v_expvar.append(exp_var)
 
-            print(f"Epoch {epoch+1}/{self.config.n_epochs}, "
-                  f"v_loss: {sum(v_losses)/len(v_losses)},"
-                  f" pi_loss: {sum(pi_losses)/len(pi_losses)},")
-                  # f" pi_acc: {sum(pi_acc)/len(pi_acc)}, "
-                  # f"v_expvar: {sum(v_expvar)/len(v_expvar)}")
+            print(f"Epoch {epoch+1}/{n_epochs}, "
+                  f"v_loss: {sum(v_losses)/len(v_losses):.2f},"
+                  f" pi_loss: {sum(pi_losses)/len(pi_losses):.2f},"
+                  f" pi_acc: {sum(pi_acc)/len(pi_acc):.2f}, "
+                  f"v_expvar: {sum(v_expvar)/len(v_expvar):.2f}")
+
+
+
+
 
 
 class PiData(Data):
     def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, actions=None, target=None, **kwargs):
-        super().__init__(x=x, target=target, actions=actions, **kwargs)
+        super().__init__(x=x, target=target, actions=actions,
+                         c_edge_index=c_edge_index, d_edge_index=d_edge_index, t_edge_index=t_edge_index, **kwargs)
         if c_edge_index is not None:
             c_edge_index, _ = add_self_loops(c_edge_index)
         # print("durchgluffe")
-        if c_edge_index is not None:
-            self.c_edge_index = c_edge_index.long() #if c_edge_index else None
-            self.d_edge_index = d_edge_index.long() #if d_edge_index else None
-            self.t_edge_index = t_edge_index.long() #if t_edge_index else None
-            # self.actions = self.actions#.long()# if actions else None
-            self.target = self.target.float()#.long() #if target  else None
+        # if c_edge_index is not None:
+        #     self.actions = self.actions.long()# if actions else None
+        #     self.target = self.target.float()#.long() #if target  else None
 
 
 class VData(Data):
@@ -315,9 +315,6 @@ class PolicyNet(nn.Module):
         self.start_vecs = None
 
     def forward(self, actions, obs, eic, eid, eit, batch):
-        #
-        # if max(batch) == 0:
-        #     actions, obs = actions.unsqueeze(0), obs.unsqueeze(0)
         start_vecs, dest_vecs = self.calc_probs(obs, eic, eid, eit, batch)
         x = self.get_prob(actions, start_vecs, dest_vecs)
 
@@ -339,8 +336,12 @@ class PolicyNet(nn.Module):
 
     def get_prob(self, actions, start_vecs, dest_vecs):
         # batches, action, stations, bool_starting
-        starts = start_vecs[:,  actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
-        dests = dest_vecs[ :, actions[:, :, 1].flatten()]
+        try:
+            starts = start_vecs[:,  actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
+            dests = dest_vecs[ :, actions[:, :, 1].flatten()]
+        except Exception as e:
+            print("-.-")
+            raise e
         # Einstein Summation :)
         probs = torch.einsum('bij,bij->bj', starts, dests).to(device)
 
@@ -431,4 +432,9 @@ class Root(Node):
         # return False
         for child in self.children:
             if not child.is_dead_end(): return False
-        raise ValueError("No non-dead-ends found")
+        raise DeadEndException()
+
+
+class DeadEndException(Exception):
+    def __init__(self):
+        super().__init__("bibabo")
