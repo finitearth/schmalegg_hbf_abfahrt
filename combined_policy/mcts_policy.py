@@ -13,7 +13,7 @@ import math
 import random
 from itertools import product as cart_product
 
-from torch_geometric.utils import add_self_loops
+from torch_geometric.utils import add_self_loops, to_dense_batch
 
 import env
 import utils
@@ -49,7 +49,8 @@ class Trainer:
                 input, eic, eit, eid, batch = node.observation
                 actions = node.possible_actions
                 best_action = best_child.action
-                one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1.0
+                one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1
+                one_hot = one_hot.long()
                 pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions, target=one_hot)
                 pi_examples.append(pi_example)
 
@@ -70,9 +71,10 @@ class Trainer:
         for epoch in range(self.config.n_epochs):
             pi_losses, v_losses, pi_acc, v_expvar = [], [], [], []
             for x in iter(pi_data_loader):
-                input, eic, eid, eit, actions, target_pis = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target
-                pred_pis = self.policy_net(actions, input, eic, eit, eid)
-                l_pi = l_pi_function(pred_pis, target_pis.unsqueeze(0))
+                input, eic, eid, eit, actions, target_pis, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target, x.batch
+                target_pis, _ = to_dense_batch(target_pis, batch)
+                pred_pis = self.policy_net(actions, input, eic, eit, eid, batch)
+                l_pi = l_pi_function(pred_pis, target_pis)
                 pi_losses.append(l_pi)
                 l_pi.backward()
                 # pred_onehot = torch.zeros_like(pred_pis).long()
@@ -99,7 +101,7 @@ class Trainer:
 
 class PiData(Data):
     def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, actions=None, target=None, **kwargs):
-        super().__init__(x=x, **kwargs)
+        super().__init__(x=x, target=target, actions=actions, **kwargs)
         if c_edge_index is not None:
             c_edge_index, _ = add_self_loops(c_edge_index)
         # print("durchgluffe")
@@ -107,13 +109,13 @@ class PiData(Data):
             self.c_edge_index = c_edge_index.long() #if c_edge_index else None
             self.d_edge_index = d_edge_index.long() #if d_edge_index else None
             self.t_edge_index = t_edge_index.long() #if t_edge_index else None
-            self.actions = actions#.long()# if actions else None
-            self.target = target.float()#.long() #if target  else None
+            # self.actions = self.actions#.long()# if actions else None
+            self.target = self.target.float()#.long() #if target  else None
 
 
 class VData(Data):
     def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, target=None, **kwargs):
-        super().__init__(x=x, **kwargs)
+        super().__init__(x=x, target=target, **kwargs)
         if c_edge_index is not None:
             c_edge_index, _ = add_self_loops(c_edge_index)
         # print("durchgluffe")
@@ -153,8 +155,9 @@ class MCTS:
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
         actions = self.env.get_possible_mcts_actions(root.snapshot)
         root.possible_actions = actions
+        batch = torch.zeros(inputs.shape[0], dtype=torch.long)
         with torch.no_grad():
-            action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
+            action_probs = self.policy_net(actions, inputs, eic, eid, eit, batch)
         root.expand(actions, action_probs)
 
         for _ in range(n_simulations):
@@ -173,7 +176,7 @@ class MCTS:
                 node.backpropagate(reward)
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
                 node.possible_actions = actions
-                action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
+                action_probs = self.policy_net(actions, input, eic, eid, eit, batch)[0]
                 node.expand(actions, action_probs)
                 while True:
                     if not node.is_dead_end(): break
@@ -311,16 +314,16 @@ class PolicyNet(nn.Module):
         self.dest_vecs = None
         self.start_vecs = None
 
-    def forward(self, actions, obs, eic, eid, eit):
-
-        if len(actions.shape) == 3:
-            actions, obs = actions.unsqueeze(0), obs.unsqueeze(0)
-        start_vecs, dest_vecs = self.calc_probs(obs, eic, eid, eit)
+    def forward(self, actions, obs, eic, eid, eit, batch):
+        #
+        # if max(batch) == 0:
+        #     actions, obs = actions.unsqueeze(0), obs.unsqueeze(0)
+        start_vecs, dest_vecs = self.calc_probs(obs, eic, eid, eit, batch)
         x = self.get_prob(actions, start_vecs, dest_vecs)
 
         return x
 
-    def calc_probs(self, x, eic, eid, eit):
+    def calc_probs(self, x, eic, eid, eit, batch):
         x = self.conv1(x, eit)
         x = self.conv2(x, eic)
         x = self.conv3(x, eid)
@@ -328,18 +331,18 @@ class PolicyNet(nn.Module):
         for lin in self.lins:
             x = lin(x)
         x = self.lin1(x)
-
-        dest_vecs = x[:, :, self.n:]
+        x, _ = to_dense_batch(x, batch)
         start_vecs = x[:, :, :self.n]
+        dest_vecs = x[:, :, self.n:]
 
         return start_vecs, dest_vecs
 
     def get_prob(self, actions, start_vecs, dest_vecs):
         # batches, action, stations, bool_starting
-        starts = start_vecs[:, actions[:, :, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
-        dests = dest_vecs[:, actions[:, :, :, 1].flatten()]
+        starts = start_vecs[:,  actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
+        dests = dest_vecs[ :, actions[:, :, 1].flatten()]
         # Einstein Summation :)
-        probs = torch.einsum('bij,bij->bi', starts, dests).to(device)
+        probs = torch.einsum('bij,bij->bj', starts, dests).to(device)
 
         probs = self.softmax(probs)
         return probs
