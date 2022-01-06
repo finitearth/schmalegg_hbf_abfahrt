@@ -212,13 +212,9 @@ class Station:
         self.vector = None
         self.input_vector = None
 
-    def set_input_vector(self, config=None, vector=None):
-        if config is not None:
-            self.input_vector = np.ones(config.n_node_features) * (1 - config.range_inputvec) \
-                          + np.random.rand(config.n_node_features) * config.range_inputvec * 2
-        if vector is not None:
-            assert len(vector) == config.n_node_features, "Vector passt nicht"
-            self.input_vector = vector
+    def set_input_vector(self, vector=None, config=None):
+        assert len(vector) == config.n_node_features, "Vector passt nicht"
+        self.input_vector = vector
 
     def get_encoding(self):
         return self.input_vector

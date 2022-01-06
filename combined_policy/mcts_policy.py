@@ -6,11 +6,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 from gym import Wrapper
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import Linear
 import math
 import random
 from itertools import product as cart_product
+
+from torch_geometric.utils import add_self_loops
 
 import env
 import utils
@@ -42,43 +45,83 @@ class Trainer:
         node = root
         while not node.is_leaf():
             best_child = node.get_best_child()
-            obs = node.observation
-            input, eic, eit, eid = utils.convert_observation(obs, self.config)
-            actions = node.actions
-            best_action = best_child.action
-            one_hot = (actions == best_action)*1
-            pi_example = utils.CustomData(x=input, eic=eic, eit=eit, eid=eid, actions=actions, one_hot=one_hot)
-            pi_examples.append(pi_example)
+            if node.observation is not None:
+                input, eic, eit, eid, batch = node.observation
+                actions = node.possible_actions
+                best_action = best_child.action
+                one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1.0
+                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions, target=one_hot)
+                pi_examples.append(pi_example)
 
-            value = node.value_sum
-            v_example = utils.CustomData(x=input, eic=eic, eit=eit, eid=eid, value=value)
-            v_examples.append(v_example)
+                value = node.value_sum
+                v_example = VData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, target=value)
+                v_examples.append(v_example)
 
-            node = best_child
+                node = best_child
 
         return pi_examples, v_examples
 
     def train(self, pi_examples, v_examples):
-        pi_data_loader = DataLoader(pi_examples, batch_size=self.config.batch_size_pi, shuffle=True)
-        v_data_loader = DataLoader(v_examples, batch_size=self.config.batch_size_v, shuffle=True)
-
+        pi_data_loader = DataLoader(pi_examples, batch_size=32, shuffle=True) #self.config.batch_size_pi
+        v_data_loader = DataLoader(v_examples, batch_size=32, shuffle=True) #self.config.batch_size_v
+        print(f"Batchcount: {len(v_data_loader)}")
+        l_pi_function = nn.CrossEntropyLoss()
+        l_v_function = nn.MSELoss()
         for epoch in range(self.config.n_epochs):
-            pi_losses, v_losses = [], []
-            for input, eic, eit, eid, actions, target_pis in iter(pi_data_loader):
-                pred_pis = self.policy_net.predict(input, eic, eit, eid, actions)
-                l_pi = nn.CrossEntropyLoss()(pred_pis, target_pis)
+            pi_losses, v_losses, pi_acc, v_expvar = [], [], [], []
+            for x in iter(pi_data_loader):
+                input, eic, eid, eit, actions, target_pis = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target
+                pred_pis = self.policy_net(actions, input, eic, eit, eid)
+                l_pi = l_pi_function(pred_pis, target_pis.unsqueeze(0))
                 pi_losses.append(l_pi)
                 l_pi.backward()
+                # pred_onehot = torch.zeros_like(pred_pis).long()
+                # pred_onehot[:, pred_pis.argmax(dim=1)] = 1
+                # pi_acc.append((pred_onehot.eq(target_pis, dim=-2)/len(pred_onehot)).sum())
                 self.pi_optim.step()
 
-            for input, eic, eit, eid, target_vs in iter(v_data_loader):
-                pred_vs = self.value_net.predict(input, eic, eit, eid,)
-                l_v = nn.MSELoss()(pred_vs, target_vs)
+            for x in iter(v_data_loader):
+                input, eic,  eid, eit, target_vs, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.target, x.batch
+                pred_vs = self.value_net(input, eic, eit, eid, batch)
+                l_v = l_v_function(pred_vs, target_vs.float())
                 v_losses.append(l_v)
                 l_v.backward()
                 self.v_optim.step()
+                exp_var = 1 - torch.var(pred_vs-target_vs)/torch.var(target_vs)
+                v_expvar.append(exp_var)
 
-            print(f"Epoch {epoch}/{self.config.n_epochs}, v_loss: {np.mean(v_losses)}, pi_loss: {np.mean(pi_losses)}")
+            print(f"Epoch {epoch+1}/{self.config.n_epochs}, "
+                  f"v_loss: {sum(v_losses)/len(v_losses)},"
+                  f" pi_loss: {sum(pi_losses)/len(pi_losses)},")
+                  # f" pi_acc: {sum(pi_acc)/len(pi_acc)}, "
+                  # f"v_expvar: {sum(v_expvar)/len(v_expvar)}")
+
+
+class PiData(Data):
+    def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, actions=None, target=None, **kwargs):
+        super().__init__(x=x, **kwargs)
+        if c_edge_index is not None:
+            c_edge_index, _ = add_self_loops(c_edge_index)
+        # print("durchgluffe")
+        if c_edge_index is not None:
+            self.c_edge_index = c_edge_index.long() #if c_edge_index else None
+            self.d_edge_index = d_edge_index.long() #if d_edge_index else None
+            self.t_edge_index = t_edge_index.long() #if t_edge_index else None
+            self.actions = actions#.long()# if actions else None
+            self.target = target.float()#.long() #if target  else None
+
+
+class VData(Data):
+    def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, target=None, **kwargs):
+        super().__init__(x=x, **kwargs)
+        if c_edge_index is not None:
+            c_edge_index, _ = add_self_loops(c_edge_index)
+        # print("durchgluffe")
+        if c_edge_index is not None:
+            self.c_edge_index = c_edge_index.long()  # if c_edge_index else None
+            self.d_edge_index = d_edge_index.long()  # if d_edge_index else None
+            self.t_edge_index = t_edge_index.long()  # if t_edge_index else None
+            self.target = target
 
 
 
@@ -109,7 +152,9 @@ class MCTS:
         obs = root.observation
         inputs, eic, eid, eit, _ = obs  # utils.convert_observation(obs, self.config)
         actions = self.env.get_possible_mcts_actions(root.snapshot)
-        action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
+        root.possible_actions = actions
+        with torch.no_grad():
+            action_probs = self.policy_net(actions, inputs, eic, eid, eit)[0]
         root.expand(actions, action_probs)
 
         for _ in range(n_simulations):
@@ -120,15 +165,19 @@ class MCTS:
                 next_snapshot, obs, reward, done, info = self.env.get_result(node)
                 node.set_snapshot(next_snapshot)
                 input, eic, eid, eit, batch = obs
+                # print(obs)
                 node.observation = obs
-                value = self.value_net(input, eic, eid, eit, batch)
-                node.backpropagate(value)
+                with torch.no_grad():
+                    value_pred = self.value_net(input, eic, eid, eit, batch)
+                self.value = value_pred
+                node.backpropagate(reward)
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
+                node.possible_actions = actions
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
                 node.expand(actions, action_probs)
                 while True:
                     if not node.is_dead_end(): break
-                    node.value_sum -= 1
+                    node.value_sum -= 1.
                     node = node.parent
                     # continue
 
@@ -148,6 +197,7 @@ class MCTSWrapper(Wrapper):
         text = {
             "routes": self.env.routes,
             "trains": [{"station": int(train.station), "capacity": train.capacity, "speed": train.speed,
+                        "vector": train.input_vector,
                         "destination": int(train.destination) if train.destination is not None else -1,
                         "name": train.name} for train in self.env.trains],
             "passengers": [],
@@ -164,8 +214,8 @@ class MCTSWrapper(Wrapper):
 
         for station in self.env.stations:
             text["stations"].append({"name": station.name, "capacity": station.capacity,
-                                     "reachable_stops": [int(s) for s in station.reachable_stops]})
-            # "vector": station.input_vector})
+                                     "reachable_stops": [int(s) for s in station.reachable_stops],
+                                    "vector": station.input_vector})
 
         return text
 
@@ -174,7 +224,7 @@ class MCTSWrapper(Wrapper):
         for station in env_dict["stations"]:
             s = Station(station["capacity"], station["name"])
             stations_dict[int(station["name"])] = s
-            s.set_input_vector(self.config)
+            s.input_vector = station["vector"]
         stations_list = [s for s in stations_dict.values()]
 
         for i, station in stations_dict.items():
@@ -186,7 +236,7 @@ class MCTSWrapper(Wrapper):
         for train in env_dict["trains"]:
             t = Train(station=stations_dict[int(train["station"])], capacity=train["capacity"],
                       name=train["name"], speed=train["speed"])
-            t.set_input_vector(self.config)
+            t.input_vector = train["vector"]
             destination = train["destination"]
             if destination != -1:
                 t.destination = (stations_dict[int(destination)])
@@ -215,7 +265,7 @@ class MCTSWrapper(Wrapper):
         self.env.routes = env_dict["routes"]
         self.env.trains = trains
         self.env.stations = stations_list
-        for st in self.env.trains + self.env.stations: st.set_input_vector(self.config)
+        # for st in self.env.trains + self.env.stations: st.set_input_vector(self.config)
 
         self.env.trains_dict = {int(t): t for t in self.trains}
         self.env.stations_dict = {int(s): s for s in self.stations}
@@ -234,7 +284,7 @@ class MCTSWrapper(Wrapper):
 
     def get_possible_mcts_actions(self, snapshot):
         self.load_snapshot(snapshot)
-        actions = [[(int(t), int(d)) for d in t.station.reachable_stops]
+        actions = [[(int(t.station), int(d)) for d in t.station.reachable_stops]
                    for t in self.env.trains]  # ALARM IM POLICYNETWORK MUSS ANDERES ALS T SEIN -.-
         actions = list(cart_product(*actions))
         actions = torch.tensor(actions)
@@ -262,7 +312,9 @@ class PolicyNet(nn.Module):
         self.start_vecs = None
 
     def forward(self, actions, obs, eic, eid, eit):
-        actions, obs = actions.unsqueeze(0), obs.unsqueeze(0)
+
+        if len(actions.shape) == 3:
+            actions, obs = actions.unsqueeze(0), obs.unsqueeze(0)
         start_vecs, dest_vecs = self.calc_probs(obs, eic, eid, eit)
         x = self.get_prob(actions, start_vecs, dest_vecs)
 
@@ -349,11 +401,11 @@ class Node:
                 Node.nodes.append(node)
                 self.children.add(node)
 
-    def backpropagate(self, value):
-        if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
-        self.value_sum += value
+    def backpropagate(self, reward):
+        # if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
+        self.value_sum += float(reward)
         self.visit_count += 1
-        self.parent.backpropagate(value)
+        self.parent.backpropagate(reward)
 
     def __hash__(self):
         return hash(self.hasher)

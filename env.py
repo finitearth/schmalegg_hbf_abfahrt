@@ -15,7 +15,7 @@ import utils
 from objects import EnvBlueprint
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+###ALARM MAX TRAINS = 1!!!!!!!!!!
 class AbfahrtEnv(gym.Env):
     def __init__(self, config, mode="eval", using_mcts=False):
         super(AbfahrtEnv, self).__init__()
@@ -35,7 +35,7 @@ class AbfahrtEnv(gym.Env):
         self.active_passengers = 0
         self.min_steps_to_go = 0
         self.using_mcts = using_mcts
-        self.training = "ppo"
+        self.training = "mcts"
 
         self.get_ppo_action = None
         self.get_mcts_actino = None
@@ -111,7 +111,7 @@ class AbfahrtEnv(gym.Env):
         n = self.config.action_vector_size // 2
         if self.using_mcts:
             for (train, station) in mcts_action:
-                train = self.trains_dict[int(train)]
+                train = self.trains[0]#self.trains_dict[int(train)]
                 station = self.stations_dict[int(station)]
                 train.reroute_to(station)
         else:
@@ -145,7 +145,6 @@ class AbfahrtEnv(gym.Env):
         elif self.mode == "inference":
             self.routes, self.stations, self.trains = self.inference_env_bp.get()
         self.resets += 1
-        for st in self.stations+self.trains: st.set_input_vector(config=self.config)
 
         self.trains_dict = {int(t): t for t in self.trains}
         self.stations_dict = {int(s): s for s in self.stations}
@@ -157,6 +156,10 @@ class AbfahrtEnv(gym.Env):
 
         self.init_shortest_path_lengths = dict(networkx.shortest_path_length(g))
         self.shortest_path_lenghts = self.init_shortest_path_lengths
+
+        utils.set_node_attributes(g, self.stations, self.config)
+
+        for t in self.trains: t.set_input_vector(self.config)
 
         self.min_steps_to_go = self.get_min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
@@ -231,8 +234,9 @@ class AbfahrtEnv(gym.Env):
             edge_index_connections = torch.Tensor(eic).long()
             edge_index_trains = torch.Tensor(eit).long()
             edge_index_destinations = torch.Tensor(eid).long()
-            input_vectors = torch.Tensor(input_vectors).float()
-            input_vectors = torch.reshape(input_vectors, ((n_stations + n_trains), self.config.n_node_features)).float()
+            input_vectors = torch.Tensor(input_vectors)#.float()
+            input_vectors = torch.reshape(input_vectors, ((n_stations + n_trains), self.config.n_node_features))#.float()
+
 
             batch = torch.zeros(len(input_vectors), dtype=torch.int64)
 

@@ -18,7 +18,8 @@ env_bp.get()
 # # mcts.something(observation, env, ppo_model)
 # env_bp.render()
 g = (env_bp.graph)
-d = nx.spring_layout(g, dim=2)#, key=lambda x: x.key()))
+d = nx.d = nx.(g, dim=2)#, key=lambda x: x.key()))
+(g, dim=2)#, key=lambda x: x.key()))
 i = 0
 try:
     while True:

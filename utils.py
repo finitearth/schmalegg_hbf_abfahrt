@@ -38,7 +38,7 @@ class ConfigParams:
         self.log_std_init = wandb_config.log_std_init if w else -2
 
         self.reward_per_step = wandb_config.reward_per_step if w else 0.  # -.05
-        self.reward_reached_dest = wandb_config.reward_reached_dest if w else 0.  # 1.
+        self.reward_reached_dest = wandb_config.reward_reached_dest if w else 1.
         self.reward_step_closer = wandb_config.reward_step_closer if w else .1
 
         self.aggr_dest = wandb_config.aggr_dest if w else "add"
@@ -164,6 +164,7 @@ def convert_observation(obs, config):
 
     return b.x.to(device), b.edge_index_connections.to(device), b.edge_index_destinations.to(device), b.edge_index_trains.to(device), b.batch.to(device)
 
+
 class CustomData(Data):
     def __init__(self, x=None, edge_index_connections=None, edge_index_destinations=None, edge_attr=None,
                  edge_index_trains=None, **kwargs):
@@ -176,7 +177,7 @@ class CustomData(Data):
 
 
 def set_node_attributes(graph, stations, config):
-    d = nx.drawing.layout.shell_layout(graph, dim=config.n_node_features)
+    d = nx.spring_layout(graph, dim=config.n_node_features)
     for s in stations:
-        s.set_node_attributes(d[int(s)])
+        s.set_input_vector(d[int(s)], config=config)
 
