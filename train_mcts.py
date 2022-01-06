@@ -11,20 +11,14 @@ import torch
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
 def train_mcts(env, mcts_trainer):
     env.training = "mcts"
+
     observation = env.reset()
     env = mcts.MCTSWrapper(env)
     snapshot = env.get_snapshot()
     root = mcts.Root(snapshot, observation)
-    root = mcts_trainer.mcts.run(root)
-    # node = root
-    # while not node.is_leaf():
-    #     node = max([(c, c.value_sum) for c in node.children], key=lambda x: x[1])[0]
-    #     env.get_result(node)
-    #     env.render()
+    mcts_trainer.execute_episode(root)
 
 
 def train_ppo(env, ppo_model):
@@ -44,7 +38,7 @@ batch_size = 10
 n_steps = 20
 if __name__ == '__main__':
     config = utils.ConfigParams()
-    train_env = AbfahrtEnv(config=config, mode="render", using_mcts=True)#train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)
+    train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)#train_env = AbfahrtEnv(config=config, mode="train", using_mcts=True)
     train_env.reset()
     # train_env = mcts.MCTSWrapper(train_env)
     # train_env = make_vec_env(lambda: train_env, n_envs=config.n_envs)
@@ -66,13 +60,31 @@ if __name__ == '__main__':
 
     eval_env.get_mcts_action = mcts_trainer.mcts.predict
 
-    for i in tqdm(range(n_episodes)):
-        if i % 2 == 0:
-            train_mcts(train_env, mcts_trainer)
-        else:
-            train_ppo(train_env, ppo_model)
+    # for i in tqdm(range(n_episodes)):
+    #     if i % 2 == 0:
+    #         train_mcts(train_env, mcts_trainer)
+    #     else:
+    #         train_ppo(train_env, ppo_model)
+    #
+    #     if i % n_episodes_per_eval == 0:
+    #         eval_both(train_env, mcts_trainer, ppo_model)
 
-        if i % n_episodes_per_eval == 0:
-            eval_both(train_env, mcts_trainer, ppo_model)
+    import cProfile
+    import pstats
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    c= 0
+    for _ in tqdm(range(100)):
+        # try:
+            train_mcts(train_env, mcts_trainer)
+        # except Exception as e:
+        #     print(e)
+        #     c+=1
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats('cumtime')
+    stats.print_stats()
+
+    print(f"\n num errors:{c}")
 
 

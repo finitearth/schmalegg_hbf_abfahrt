@@ -112,25 +112,14 @@ class PolicyNet(nn.Module):
         self.conv1 = convclass(config.n_node_features, config.hidden_neurons, aggr=config.aggr_con)
         self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
         self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_dest)
-        self.conv4 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
-        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(config.n_lin_policy)]
+        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(2)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
 
-    def forward(self, x, edge_index_connections, edge_index_destinations, edge_index_trains, batch):
-        x = self.conv1(x, edge_index_connections)
-        # x = self.activation(x)
-        x = self.conv2(x, edge_index_trains)
-        for _ in range(self.config.it_b4_dest):
-            x = self.conv3(x, edge_index_connections)
-            # x = self.activation(x)  #
-        x = self.conv4(x, edge_index_destinations)
-        # x = self.activation(x)
+    def forward(self, x, eic, eid, eit, batch):
+        x = self.conv1(x, eit)
+        x = self.conv2(x, eid)
+        x = self.conv3(x, eic)
 
-        for _ in range(self.config.it_aft_dest):
-            x = self.conv5(x, edge_index_connections)
-            # x = self.activation(x)
-        # x, _ =
         for lin in self.lins:
             x = lin(x)
         x = self.lin1(x)

@@ -85,14 +85,10 @@ class AbfahrtEnv(gym.Env):
             if not train.reached_next_stop(): continue
             for p in train.passengers: train.deboard(p)
             while len(train.passengers) < train.capacity and len(train.station.passengers) > 0:
-                try:
-                    dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
-                except Exception as e:
-                    print(len(ppo_action.shape))
-                    raise e
+                dot_products = [train.station.vector[n:] @ p.destination.vector[:n] for p in train.station.passengers]
                 idx = np.argmax(dot_products)
 
-                if True:#dot_products[idx]:
+                if dot_products[idx]:
                     train.onboard(train.station.passengers[idx])
                 else: break
 

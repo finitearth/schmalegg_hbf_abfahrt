@@ -50,10 +50,8 @@ class Trainer:
             self.train(train_examples)
 
     def train(self, examples):
-        pi_optim = torch.optim.Adam(
-            self.policy_net.parameters(), lr=self.config.lr_pi)
-        v_optim = torch.optim.Adam(
-            self.value_net.parameters(), lr=self.config.lr_v)
+        pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
+        v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
 
         for epoch in range(self.config.n_epochs):
             batch_idx = 0
@@ -119,10 +117,11 @@ class MCTS:
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
                 action_probs = self.policy_net(actions, input, eic, eid, eit)[0]
                 node.expand(actions, action_probs)
-                while node.is_dead_end():
+                while True:
+                    if not node.is_dead_end(): break
                     node.value_sum -= 1
                     node = node.parent
-                    continue
+                    # continue
 
                 # print(f"step: {node.snapshot['step_count']}; action: {node.action}")
                 # self.env.render()
@@ -243,13 +242,9 @@ class PolicyNet(nn.Module):
         self.conv2 = convclass(config.hidden_neurons,
                                config.hidden_neurons, aggr=config.aggr_con)
         self.conv3 = convclass(config.hidden_neurons,
-                               config.hidden_neurons, aggr=config.aggr_dest)
-        self.conv4 = convclass(config.hidden_neurons,
-                               config.hidden_neurons, aggr=config.aggr_con)
-        self.conv5 = convclass(config.hidden_neurons,
                                config.hidden_neurons, aggr=config.aggr_con)
         self.lins = [Linear(hidden_neurons, hidden_neurons).to(device)
-                     for _ in range(config.n_lin_policy)]
+                     for _ in range(2)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
         self.softmax = nn.Softmax(dim=1)
         self.config = config
@@ -265,18 +260,9 @@ class PolicyNet(nn.Module):
         return x
 
     def calc_probs(self, x, eic, eid, eit):
-        x = self.conv1(x, eic)
-        # x = self.activation(x)
-        x = self.conv2(x, eit)
-        for _ in range(self.config.it_b4_dest):
-            x = self.conv3(x, eic)
-            # x = self.activation(x)  #
-        x = self.conv4(x, eid)
-        # x = self.activation(x)
-
-        for _ in range(self.config.it_aft_dest):
-            x = self.conv5(x, eic)
-            # x = self.activation(x)
+        x = self.conv1(x, eit)
+        x = self.conv2(x, eic)
+        x = self.conv3(x, eid)
 
         for lin in self.lins:
             x = lin(x)
@@ -349,8 +335,6 @@ class Node:
                 Node.nodes.append(node)
                 self.children.add(node)
 
-
-
     def backpropagate(self, value):
         if isinstance(value, torch.Tensor): value = value.cpu().detach().numpy()
         self.value_sum += value
@@ -375,7 +359,7 @@ class Root(Node):
         self.value_sum += value
 
     def is_dead_end(self):
-        if self.expanded:
-            raise Exception("No valid routes found without getting into dead ends :/")
-        else:
-            return False
+        # return False
+        for child in self.children:
+            if not child.is_dead_end(): return False
+        raise ValueError("No non-dead-ends found")
