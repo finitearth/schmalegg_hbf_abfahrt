@@ -6,6 +6,7 @@ from gym import Wrapper
 from torch.optim.lr_scheduler import StepLR, ExponentialLR
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader as PyGDataLoader
+from torch_geometric.nn import Sequential
 from torch.utils.data import DataLoader
 from torch_geometric.nn import Linear
 import math
@@ -26,8 +27,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class Trainer:
     def __init__(self, env, value_net, policy_net, get_ppo_action, config):
         self.env = MCTSWrapper(env)
-        self.value_net = value_net
-        self.policy_net = policy_net
+        self.value_net = value_net.to(device)
+        self.policy_net = policy_net.to(device)
         self.config = config
         self.mcts = MCTS(env, value_net, policy_net,
                          self.config, get_ppo_action)
@@ -75,6 +76,7 @@ class Trainer:
         for epoch in range(n_epochs):
             pi_losses, v_losses, pi_acc, v_expvar, batches = [], [], [], [], []
             for x in iter(pi_data_loader):
+                x = x.to(device)
                 input, eic, eid, eit, actions, target_pis, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target, x.batch
                 pred_pis = self.policy_net(actions, input, eic, eit, eid, batch)
                 l_pi = l_pi_function(pred_pis, target_pis)
@@ -87,6 +89,7 @@ class Trainer:
                 # self.lr_pi.step()
 
             for x in iter(v_data_loader):
+                x = x.to(device)
                 input, eic, eid, eit, target_vs, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.target, x.batch
                 pred_vs = self.value_net(input, eic, eit, eid, batch)
                 pred_vs = pred_vs.squeeze(1)
@@ -320,9 +323,10 @@ class PolicyNet(nn.Module):
         self.conv9 = convclass(config.hidden_neurons,  config.hidden_neurons, aggr=config.aggr_con)
         self.lin4 = Linear(hidden_neurons, hidden_neurons)
 
-        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device)
-                     for _ in range(2)]
-        self.lin1 = Linear(hidden_neurons, config.action_vector_size)
+
+        self.lins = Sequential('x', [(Linear(hidden_neurons, hidden_neurons), 'x->x')
+                     for _ in range(2)])
+        self.lin1 = Linear(hidden_neurons, config.action_vector_size).to(device)
         self.softmax = nn.Softmax(dim=1)
         self.config = config
         self.n = config.action_vector_size // 2
@@ -357,11 +361,13 @@ class PolicyNet(nn.Module):
         # x = self.lin4(x)
         # x = torch.tanh(x)
 
-        for lin in self.lins:
-            x = lin(x)
-            x = torch.tanh(x)
+        # for lin in self.lins:
+        #     x = lin(x)
+        #     x = torch.tanh(x)
+
+        x = self.lins(x)
         x = self.lin1(x)
-        x, _ = to_dense_batch(x, batch)
+        x, _ = to_dense_batch(x, batch.to(device))
         start_vecs = x[:, :, :self.n]
         dest_vecs = x[:, :, self.n:]
 
