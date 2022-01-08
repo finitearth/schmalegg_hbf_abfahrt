@@ -19,8 +19,8 @@ def train_mcts(env, mcts_trainer):
     pi_examples = []
     v_examples = []
     env = mcts.MCTSWrapper(env)
-    for _ in range(256):
-        for _ in tqdm(range(32)):
+    for _ in range(124):
+        for _ in tqdm(range(256)):
             try:
                 observation = env.reset()
                 snapshot = env.get_snapshot()
@@ -82,8 +82,8 @@ if __name__ == '__main__':
     #     if i % n_episodes_per_eval == 0:
     #         eval_both(train_env, mcts_trainer, ppo_model)
 
-
     train_mcts(train_env, mcts_trainer)
+
 
 
 

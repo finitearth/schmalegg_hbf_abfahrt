@@ -3,6 +3,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 from gym import Wrapper
+from torch.optim.lr_scheduler import StepLR, ExponentialLR
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch.utils.data import DataLoader
@@ -15,12 +16,11 @@ from torch_geometric.utils import add_self_loops, to_dense_batch
 import env
 import utils
 from objects import Station, PassengerGroup, Train
-
+import torch.nn.functional as F
 n_simulations = 10
 n_steps = 10
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 
 
 class Trainer:
@@ -33,8 +33,11 @@ class Trainer:
                          self.config, get_ppo_action)
         self.pi_examples = []
         self.v_examples = []
+
         self.pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
         self.v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
+        # self.lr_pi = ExponentialLR(optimizer=self.pi_optim, gamma=.995)
+        # self.lr_v = ExponentialLR(optimizer=self.v_optim, gamma=.995)
 
     def execute_episode(self, root):
         root = self.mcts.search(root)
@@ -49,10 +52,12 @@ class Trainer:
                 best_action = best_child.action
                 # one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1.
                 target = (actions == best_action).all(dim=-1).nonzero(as_tuple=True)[0]
-                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions, target=target)
+                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions,
+                                    target=target)
                 pi_examples.append(pi_example)
 
                 value = node.value_sum
+                # print(node.value_sum)
                 v_example = VData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, target=value)
                 v_examples.append(v_example)
 
@@ -61,14 +66,14 @@ class Trainer:
         return pi_examples, v_examples
 
     def train(self, pi_examples, v_examples):
-        pi_data_loader = DataLoader(pi_examples, batch_size=32, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
-        v_data_loader = PyGDataLoader(v_examples, batch_size=32, shuffle=True) #self.config.batch_size_v
+        pi_data_loader = DataLoader(pi_examples, batch_size=1024, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
+        v_data_loader = PyGDataLoader(v_examples, batch_size=1024, shuffle=True)  # self.config.batch_size_v
         print(f"Batchcount: {len(v_data_loader)}")
         l_pi_function = nn.CrossEntropyLoss()
         l_v_function = nn.MSELoss()
-        n_epochs = 8#self.config.n_epochs):
+        n_epochs = 8  # self.config.n_epochs):
         for epoch in range(n_epochs):
-            pi_losses, v_losses, pi_acc, v_expvar = [], [], [], []
+            pi_losses, v_losses, pi_acc, v_expvar, batches = [], [], [], [], []
             for x in iter(pi_data_loader):
                 input, eic, eid, eit, actions, target_pis, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.actions, x.target, x.batch
                 pred_pis = self.policy_net(actions, input, eic, eit, eid, batch)
@@ -76,33 +81,34 @@ class Trainer:
                 pi_losses.append(l_pi)
                 l_pi.backward()
                 pred_onehot = torch.argmax(pred_pis, -1)
-                pi_acc.append(sum(pred_onehot==target_pis)/len(pred_onehot))
+                pi_acc.append(sum(pred_onehot == target_pis) / len(pred_onehot))
+                batches.append(max(batch)+1)
                 self.pi_optim.step()
+                # self.lr_pi.step()
 
             for x in iter(v_data_loader):
-                input, eic,  eid, eit, target_vs, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.target, x.batch
+                input, eic, eid, eit, target_vs, batch = x.x, x.c_edge_index, x.d_edge_index, x.t_edge_index, x.target, x.batch
                 pred_vs = self.value_net(input, eic, eit, eid, batch)
                 pred_vs = pred_vs.squeeze(1)
                 l_v = l_v_function(pred_vs, target_vs.float())
                 v_losses.append(l_v)
                 l_v.backward()
-                self.v_optim.step()
-                exp_var = 1 - torch.var(pred_vs-target_vs)/torch.var(target_vs)
+                exp_var = 1 - torch.var(target_vs-pred_vs) / (torch.var(target_vs)+1e6)
                 v_expvar.append(exp_var)
+                self.v_optim.step()
+                # self.lr_v.step()
 
-            print(f"Epoch {epoch+1}/{n_epochs}, "
-                  f"v_loss: {sum(v_losses)/len(v_losses):.2f},"
-                  f" pi_loss: {sum(pi_losses)/len(pi_losses):.2f},"
-                  f" pi_acc: {sum(pi_acc)/len(pi_acc):.2f}, "
-                  f"v_expvar: {sum(v_expvar)/len(v_expvar):.2f}")
-
-
-
-
+            print(f"Epoch {epoch + 1}/{n_epochs}, "
+                  f"v_loss: {sum(v_losses) / len(v_losses):.2f},"
+                  f" pi_loss: {sum(pi_losses) / len(pi_losses):.2f},"
+                  f" pi_acc: {sum(pi_acc) / len(pi_acc):.2f}, "
+                  f"v_expvar: {sum(v_expvar) / len(v_expvar):.2f}, "
+                  f"max batch: {max(batches)}")
 
 
 class PiData(Data):
-    def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, actions=None, target=None, **kwargs):
+    def __init__(self, x=None, c_edge_index=None, d_edge_index=None, t_edge_index=None, actions=None, target=None,
+                 **kwargs):
         super().__init__(x=x, target=target, actions=actions,
                          c_edge_index=c_edge_index, d_edge_index=d_edge_index, t_edge_index=t_edge_index, **kwargs)
         if c_edge_index is not None:
@@ -124,7 +130,6 @@ class VData(Data):
             self.d_edge_index = d_edge_index.long()  # if d_edge_index else None
             self.t_edge_index = t_edge_index.long()  # if t_edge_index else None
             self.target = target
-
 
 
 class MCTS:
@@ -172,7 +177,7 @@ class MCTS:
                 node.observation = obs
                 with torch.no_grad():
                     value_pred = self.value_net(input, eic, eid, eit, batch)
-                self.value = value_pred
+                node.value_pred = value_pred
                 node.backpropagate(reward)
                 actions = self.env.get_possible_mcts_actions(node.snapshot)
                 node.possible_actions = actions
@@ -218,7 +223,7 @@ class MCTSWrapper(Wrapper):
         for station in self.env.stations:
             text["stations"].append({"name": station.name, "capacity": station.capacity,
                                      "reachable_stops": [int(s) for s in station.reachable_stops],
-                                    "vector": station.input_vector})
+                                     "vector": station.input_vector})
 
         return text
 
@@ -299,12 +304,22 @@ class PolicyNet(nn.Module):
         super(PolicyNet, self).__init__()
         hidden_neurons = config.hidden_neurons
         convclass = config.conv
-        self.conv1 = convclass(config.n_node_features,
+        self.conv1 = convclass(config.n_node_features, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv2 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv3 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.lin2 = Linear(hidden_neurons, hidden_neurons)
+
+        self.conv4 = convclass(hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv5 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv6 = convclass(config.hidden_neurons,
                                config.hidden_neurons, aggr=config.aggr_con)
-        self.conv2 = convclass(config.hidden_neurons,
-                               config.hidden_neurons, aggr=config.aggr_con)
-        self.conv3 = convclass(config.hidden_neurons,
-                               config.hidden_neurons, aggr=config.aggr_con)
+        self.lin3 = Linear(hidden_neurons, hidden_neurons)
+
+        self.conv7 = convclass(hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv8 = convclass(config.hidden_neurons, config.hidden_neurons, aggr=config.aggr_con)
+        self.conv9 = convclass(config.hidden_neurons,  config.hidden_neurons, aggr=config.aggr_con)
+        self.lin4 = Linear(hidden_neurons, hidden_neurons)
+
         self.lins = [Linear(hidden_neurons, hidden_neurons).to(device)
                      for _ in range(2)]
         self.lin1 = Linear(hidden_neurons, config.action_vector_size)
@@ -315,38 +330,50 @@ class PolicyNet(nn.Module):
         self.start_vecs = None
 
     def forward(self, actions, obs, eic, eid, eit, batch):
-        start_vecs, dest_vecs = self.calc_probs(obs, eic, eid, eit, batch)
-        x = self.get_prob(actions, start_vecs, dest_vecs)
-
-        return x
-
-    def calc_probs(self, x, eic, eid, eit, batch):
-        x = self.conv1(x, eit)
+        x = self.conv1(obs, eit)
+        x = torch.relu(x)
         x = self.conv2(x, eic)
+        x = torch.relu(x)
         x = self.conv3(x, eid)
+        x = torch.relu(x)
+        x = self.lin2(x)
+        x = torch.relu(x)
+
+        x = self.conv3(x, eit)
+        x = torch.relu(x)
+        x = self.conv4(x, eic)
+        x = torch.relu(x)
+        x = self.conv5(x, eid)
+        x = torch.relu(x)
+        x = self.lin3(x)
+        x = torch.relu(x)
+
+        # x = self.conv7(x, eit)
+        # x = torch.tanh(x)
+        # x = self.conv8(x, eic)
+        # x = torch.tanh(x)
+        # x = self.conv9(x, eid)
+        # x = torch.tanh(x)
+        # x = self.lin4(x)
+        # x = torch.tanh(x)
 
         for lin in self.lins:
             x = lin(x)
+            x = torch.tanh(x)
         x = self.lin1(x)
         x, _ = to_dense_batch(x, batch)
         start_vecs = x[:, :, :self.n]
         dest_vecs = x[:, :, self.n:]
 
-        return start_vecs, dest_vecs
+        starts = start_vecs[:, actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
+        dests = dest_vecs[:, actions[:, :, 1].flatten()]
 
-    def get_prob(self, actions, start_vecs, dest_vecs):
-        # batches, action, stations, bool_starting
-        try:
-            starts = start_vecs[:,  actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
-            dests = dest_vecs[ :, actions[:, :, 1].flatten()]
-        except Exception as e:
-            print("-.-")
-            raise e
-        # Einstein Summation :)
         probs = torch.einsum('bij,bij->bj', starts, dests).to(device)
 
         probs = self.softmax(probs)
+
         return probs
+
 
 
 class Node:
@@ -361,12 +388,13 @@ class Node:
         self.children = set()
         self.visit_count = 0
         self.value_sum = 0
+        self.value_pred = None
         self.action_probs = None
         self.snapshot = None
-        self.hasher = str(parent.snapshot["stations"]) + \
-                      str(parent.snapshot["trains"]) + \
-                      str(parent.snapshot["passengers"]) \
-                      + str(self.action)  if parent else "root"
+        self.hasher = tuple(d.values() for d in parent.snapshot["stations"]) + \
+                      tuple(d.values() for d in parent.snapshot["trains"]) + \
+                      tuple(d.values() for d in parent.snapshot["passengers"])+\
+                      tuple((self.action)) if parent else "root"
 
     def set_snapshot(self, snapshot):
         self.snapshot = snapshot
@@ -385,7 +413,8 @@ class Node:
         return True
 
     def get_ucb_score(self):
-        return self.value_sum + self.prior * math.sqrt(self.parent.visit_count / (self.visit_count + 1))
+        return self.value_sum + self.prior * math.sqrt(
+            self.parent.visit_count / (self.visit_count + 1))  # + self.value_pred
 
     def select_best_leaf(self):
         if self.is_leaf(): return self
@@ -423,7 +452,7 @@ class Root(Node):
         super().__init__(None, None, 1)
         self.observation = observation
         self.snapshot = snapshot
-        self.hasher = tuple()
+        self.hasher = tuple("huhu")
 
     def backpropagate(self, value):
         self.value_sum += value

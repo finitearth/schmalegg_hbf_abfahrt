@@ -9,7 +9,7 @@ class ValueNet(nn.Module):
         super(ValueNet, self).__init__()
         self.config = config
         hidden_neurons = config.hidden_neurons
-        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(2)]
+        self.lins = [Linear(hidden_neurons, hidden_neurons).to(device) for _ in range(4)]
         self.lin1 = Linear(hidden_neurons, 1)
         self.bn = BatchNorm(hidden_neurons)
 
@@ -25,7 +25,7 @@ class ValueNet(nn.Module):
         # x = self.bn(x)
         for lin in self.lins:
             x = lin(x)
-            x = F.relu(x)
+            x = torch.relu(x)
         x = self.lin1(x)
 
         return x

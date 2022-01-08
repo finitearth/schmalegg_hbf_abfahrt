@@ -7,8 +7,10 @@ import networkx as nx
 import torch
 import numpy as np
 from PIL import ImageDraw, Image
+import warnings
 from gym.spaces import Box
 from matplotlib import pyplot as plt
+from stable_baselines3.common.running_mean_std import RunningMeanStd
 
 import objects
 import utils
@@ -51,6 +53,9 @@ class AbfahrtEnv(gym.Env):
                 self.eval_envs.append(env)
         self.resets = 0
         self.step_count = 0 # help me stepcount, im stuck!
+
+        self.ret_rms = RunningMeanStd(shape=())
+        self.returns = 0
 
     def step(self, action):
         self.step_count += 1
@@ -100,9 +105,12 @@ class AbfahrtEnv(gym.Env):
         reward += (self.active_passengers-active_passengers)*self.config.reward_reached_dest+self.config.reward_per_step
         self.active_passengers = active_passengers
         done = bool(active_passengers == 0)
-        # if self.step_count > 500: # stop after 500 steps, because aint nobody got time for that
-        #     done = True
-        #     reward = -5
+        if self.step_count > 10: # stop after 500 steps, because aint nobody got time for that
+            done = True
+            reward = -.1
+            warnings.warn("nix gschafft")
+
+        reward /= 0.5 # "normalizing" ;)
         return self.get_observation(), reward, done, {}
 
     def rerouting_trains(self, mcts_action=None):
@@ -160,6 +168,9 @@ class AbfahrtEnv(gym.Env):
         self.step_count = 0
 
         for t in self.trains: t.set_input_vector(self.config)
+
+        self.returns = 0
+
         return self.get_observation()
 
     def get_observation(self, return_type="array"):

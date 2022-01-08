@@ -40,7 +40,7 @@ class ConfigParams:
         self.log_std_init = wandb_config.log_std_init if w else -2
 
         self.reward_per_step = wandb_config.reward_per_step if w else 0.  # -.05
-        self.reward_reached_dest = wandb_config.reward_reached_dest if w else 1.
+        self.reward_reached_dest = wandb_config.reward_reached_dest if w else 0.#1.
         self.reward_step_closer = wandb_config.reward_step_closer if w else .1
 
         self.aggr_dest = wandb_config.aggr_dest if w else "add"

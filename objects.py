@@ -147,7 +147,7 @@ class EnvBlueprint:
     def random(self, n_max_stations):
         n_station = int(max(7, n_max_stations * random.random()))
 
-        p = 2 / (n_station + 1)
+        p = 2 / (n_station + 1) * 3
         graph = fast_gnp_random_graph(n_station, p)
         c = nx.k_edge_augmentation(graph, 1)
         graph.add_edges_from(c)
@@ -168,7 +168,7 @@ class EnvBlueprint:
             routes.add(stations[e[0]], stations[e[1]], i, capacity, length)
         self.routes = routes.get_all_routes()
 
-        n_passenger_group_max = 20
+        n_passenger_group_max = 10
         n_passenger_group = max(1, int(n_passenger_group_max * random.random()))
         for _ in range(n_passenger_group):
             station = random.choice(stations)
