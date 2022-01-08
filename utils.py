@@ -20,8 +20,8 @@ from policies import ppo_policy
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class ConfigParams:
     def __init__(self, wandb_config=None):
-        self.lr_pi = 10 ** -5
-        self.lr_v = 10 ** -5
+        self.lr_pi = 10 ** -4
+        self.lr_v = 10 ** -4
         self.n_iters = 4
         self.n_eps = 1
         self.n_epochs = 4

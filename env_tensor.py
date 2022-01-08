@@ -1,3 +1,5 @@
+import torch
+
 class TensorEnv:
     def __init__(self):
         pass

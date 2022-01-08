@@ -67,8 +67,8 @@ class Trainer:
         return pi_examples, v_examples
 
     def train(self, pi_examples, v_examples):
-        pi_data_loader = DataLoader(pi_examples, batch_size=1024, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
-        v_data_loader = PyGDataLoader(v_examples, batch_size=1024, shuffle=True)  # self.config.batch_size_v
+        pi_data_loader = DataLoader(pi_examples, batch_size=256, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
+        v_data_loader = PyGDataLoader(v_examples, batch_size=256, shuffle=True)  # self.config.batch_size_v
         print(f"Batchcount: {len(v_data_loader)}")
         l_pi_function = nn.CrossEntropyLoss()
         l_v_function = nn.MSELoss()
@@ -96,16 +96,16 @@ class Trainer:
                 l_v = l_v_function(pred_vs, target_vs.float())
                 v_losses.append(l_v)
                 l_v.backward()
-                exp_var = 1 - torch.var(target_vs-pred_vs) / (torch.var(target_vs)+1e6)
+                exp_var = 1 - torch.var(target_vs-pred_vs) / (torch.var(target_vs)+1e-6)
                 v_expvar.append(exp_var)
                 self.v_optim.step()
                 # self.lr_v.step()
 
             print(f"Epoch {epoch + 1}/{n_epochs}, "
-                  f"v_loss: {sum(v_losses) / len(v_losses):.2f},"
-                  f" pi_loss: {sum(pi_losses) / len(pi_losses):.2f},"
-                  f" pi_acc: {sum(pi_acc) / len(pi_acc):.2f}, "
-                  f"v_expvar: {sum(v_expvar) / len(v_expvar):.2f}, "
+                  f"v_loss: {sum(v_losses) / len(v_losses):.3f},"
+                  f" pi_loss: {sum(pi_losses) / len(pi_losses):.3f},"
+                  f" pi_acc: {sum(pi_acc) / len(pi_acc) * 100:.3f}% , "
+                  f"v_expvar: {sum(v_expvar) / len(v_expvar):.4f}, "
                   f"max batch: {max(batches)}")
 
 
