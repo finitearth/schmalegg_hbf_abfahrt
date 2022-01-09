@@ -1,5 +1,7 @@
-a = {1, 2, 3}
+import torch
+  
+nv1_input_tensors = torch.Tensor(
+    torch.rand(3, 4)
+)
 
-b = 2
-
-print(b in a)
+print(nv1_input_tensors)
