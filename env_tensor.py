@@ -60,9 +60,9 @@ def get_station_adj_routes():
 
     ])
     length_routes1 = torch.Tensor([
-        [0, 3, 0],
-        [0, 0, 0],
-        [0, 4, 0]
+        [1, 3, 2],
+        [2, 1, 2],
+        [0, 4, 1]
     ])
     env2_adj_tensor = torch.Tensor([
         [1, 1],
@@ -77,7 +77,7 @@ def get_station_adj_routes():
 def get_train_tensor():
     env1_train_tensor = torch.Tensor([
         [
-            [float("NaN"), 0, float("NaN")],
+            [float("NaN"),  float("NaN"), 0],
             [float("NaN"), float("NaN"), float("NaN")],
             [float("NaN"), float("NaN"), float("NaN")]
         ]
@@ -102,12 +102,12 @@ def get_train_tensor():
 
 
 def get_passenger_tensor():
-    env1_delay_tensor = torch.Tensor([
-        [float('nan'), float('nan'), float('nan')],
-        [float('nan'), float('nan'), float('nan')],
-        [float('nan'), float('nan'), -12],
+    env1_delay_tensor = torch.Tensor([[
+        [float('nan'), float('nan'), float('nan')], # Spalten: Ziel
+        [float('nan'), float('nan'), float('nan')], # Zeile: aktueller Bahnhof
+        [float('nan'),  -12, float('nan')],
         [float("nan"), float("nan"), float("nan")]
-    ])
+    ]])
 
     env2_delay_tensor = torch.Tensor([
         [
@@ -124,7 +124,7 @@ def get_passenger_tensor():
 
 def get_station_tensors():
     env1_input_tensors = torch.Tensor(
-        torch.rand(3, 4)
+        torch.rand(4, 4)
     )
 
     env2_input_tensors = torch.Tensor(
@@ -215,28 +215,43 @@ def update_passenger_delay(delay_passenger):
 
 def apply_action(train_progress, length_routes):
     length_routes_w_trains = length_routes * (train_pos_routes.isnan().logical_not())
-    train_reached_dest = torch.greater(train_progress, length_routes_w_trains).any(dim=1).any(dim=1)
+    train_reached_dest = greater_not_close(train_progress, length_routes_w_trains).any(dim=1).any(dim=1)
     train_station = (torch.isnan(train_pos_stations).logical_not() * 1).argmax(dim=2).max(dim=1).values
-    print(train_reached_dest)
-    if train_reached_dest.any():
-        onboard_passengers(0, 0, 3, train_station)
-        possible_actions = adj[train_station]
+    reached_train_station = train_station.clone()
+    reached_train_station = train_station[train_reached_dest]
+    if len(reached_train_station) == 0: return train_station # no possible actions
+    possible_actions = torch.cartesian_prod(*adj[reached_train_station])
+    possible_actions = possible_actions
+    
+    # choose action
+    action = possible_actions[0]
+    #rerouting of trains
+    num_reroutable_trains = torch.sum(train_reached_dest)
+    new_train_stations = torch.zeros(num_reroutable_trains, train_station.shape[1], train_station.shape[2]) 
+    train_station[train_reached_dest]
+    return train_station
 
 
-def onboard_passengers(train_dest, min_dot_req, idx_train, train_station):
+def onboard_passengers(train_dest, min_dot_req, idx_train, train_station, delay_passenger):
     passenger = torch.where(torch.logical_not(delay_passenger.isnan()), 1, 0)
-    passenger_dest = passenger.argmax(dim=0).max(dim=0).values
-    passenger_current = torch.swapaxes(passenger, 0, 1).argmax(dim=0).max(dim=0).values # vlt .T?
+    passenger_dest = passenger.sum(dim=1).argmax(dim=1)
+    passenger_current = torch.transpose(passenger, 1, 2).sum(dim=1).argmax(dim=1)
 
     swap_tensor1 = torch.LongTensor([passenger_current, idx_train])
     swap_tensor2 = torch.LongTensor([idx_train, passenger_current])
-    mask = passenger_current == idx_train
-    delay_passenger[swap_tensor1][mask] = delay_passenger[swap_tensor2][mask]  # aussteige
-    passenger_dest_vec = stations[passenger_dest]
-    passenger_current_vec = stations[passenger_current]
-    train_dest_vec = stations[train_dest]
-    mask = (train_dest_vec - passenger_current_vec) @ passenger_dest_vec > min_dot_req # wenn ein einstieg vorteilhaft wäre
-    delay_passenger[swap_tensor1] = delay_passenger[swap_tensor2]#[mask][mask] # einsteige
+    mask_stations_match = passenger_current == train_station
+    mask_passenger_in_train = passenger_current == idx_train
+    mask_both = torch.logical_and(mask_stations_match, mask_passenger_in_train)
+    swapped_delay_passenger = delay_passenger.clone()
+    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2] # swapping
+    delay_passenger = torch.where(mask_both, swapped_delay_passenger, delay_passenger)
+
+
+    swapped_delay_passenger = delay_passenger.clone()
+    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2] # swapping
+    delay_passenger = torch.where(mask_stations_match, swapped_delay_passenger, delay_passenger)
+
+    return delay_passenger
 
 
 adj, length_routes, _, _ = get_station_adj_routes()
@@ -251,9 +266,9 @@ action, _ = get_action_vectors(adj, _)
 train_pos_routes = update_train_pos_routes(length_routes, train_progress)
 train_pos_stations = update_train_pos_stations(length_routes, train_progress)
 
-n_steps = 33
+n_steps = 23
 for _ in range(n_steps):
-    # print(_)
+    print(_)
     capa_pos_routes_current = update_capa_routes(capa_route, train_pos_routes)
     capa_station_current = update_capa_station(capa_station, train_pos_stations)
     train_pos_routes = update_train_pos_routes(length_routes, train_progress)
@@ -261,7 +276,8 @@ for _ in range(n_steps):
     train_progress = update_train_progress(train_pos_routes, vel, train_progress)
     delay_passenger = update_passenger_delay(delay_passenger)
 
-    apply_action(train_progress, length_routes)
-
-
-    # print(train_progress)
+    train_station = apply_action(train_progress, length_routes)
+    
+    delay_passenger = onboard_passengers(0, 0, 3, train_station, delay_passenger)
+    
+    print(delay_passenger)
