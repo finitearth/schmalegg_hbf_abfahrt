@@ -225,19 +225,18 @@ def apply_action(train_progress, length_routes):
 
 def onboard_passengers(train_dest, min_dot_req, idx_train, train_station):
     passenger = torch.where(torch.logical_not(delay_passenger.isnan()), 1, 0)
-    print(delay_passenger)
     passenger_dest = passenger.argmax(dim=0).max(dim=0).values
-    passenger_current = torch.swapaxes(passenger, 0, 1).argmax(dim=0).max(dim=0).values
+    passenger_current = torch.swapaxes(passenger, 0, 1).argmax(dim=0).max(dim=0).values # vlt .T?
 
     swap_tensor1 = torch.LongTensor([passenger_current, idx_train])
     swap_tensor2 = torch.LongTensor([idx_train, passenger_current])
-    mask = passenger_current == train_station
+    mask = passenger_current == idx_train
     delay_passenger[swap_tensor1][mask] = delay_passenger[swap_tensor2][mask]  # aussteige
     passenger_dest_vec = stations[passenger_dest]
     passenger_current_vec = stations[passenger_current]
     train_dest_vec = stations[train_dest]
     mask = (train_dest_vec - passenger_current_vec) @ passenger_dest_vec > min_dot_req # wenn ein einstieg vorteilhaft wäre
-    delay_passenger[swap_tensor1][mask] = delay_passenger[swap_tensor2][mask] # einsteige
+    delay_passenger[swap_tensor1] = delay_passenger[swap_tensor2]#[mask][mask] # einsteige
 
 
 adj, length_routes, _, _ = get_station_adj_routes()
