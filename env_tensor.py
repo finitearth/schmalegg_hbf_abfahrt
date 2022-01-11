@@ -221,12 +221,16 @@ def apply_action(train_progress, length_routes):
     reached_train_station = train_station[train_reached_dest]
     if len(reached_train_station) == 0: return train_station  # no possible actions
     possible_actions = torch.cartesian_prod(*adj[reached_train_station])
-
+    boolean_tensor = torch.where(possible_actions==1, True, False)
+    possible_actions = torch.arange(possible_actions.shape[-1])[boolean_tensor]
     # choose action
     action = possible_actions[0]
+    row = train_station.repeat_interleave(possible_actions.size(dim=-1))
+    column = possible_actions
     # rerouting of trains
     num_reroutable_trains = int(torch.sum(train_reached_dest))
-    new_train_stations = torch.zeros(num_reroutable_trains, length_routes_w_trains.shape[1], length_routes_w_trains.shape[2])
+    new_train_stations = torch.zeros(possible_actions.shape[0], length_routes_w_trains.shape[1], length_routes_w_trains.shape[2])
+    new_train_stations[torch.arange(possible_actions.shape[0]),row,column] = 1
     # train_station[train_reached_dest] = "dingas"
 
     return train_station
