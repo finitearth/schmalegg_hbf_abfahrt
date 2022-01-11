@@ -53,10 +53,10 @@ def close_or_less(a, b):
 
 def get_station_adj_routes():
     env1_adj_tensor = torch.Tensor([
-        [1, 1, 0], #station1
-        [0, 1, 0], #station2
-        [0, 1, 1], #station3
-        [0, 0, 0]  #train1
+        [1, 1, 0],  # station1
+        [0, 1, 0],  # station2
+        [0, 1, 1],  # station3
+        [0, 0, 0]  # train1
 
     ])
     length_routes1 = torch.Tensor([
@@ -77,7 +77,7 @@ def get_station_adj_routes():
 def get_train_tensor():
     env1_train_tensor = torch.Tensor([
         [
-            [float("NaN"),  float("NaN"), 0],
+            [float("NaN"), float("NaN"), 0],
             [float("NaN"), float("NaN"), float("NaN")],
             [float("NaN"), float("NaN"), float("NaN")]
         ]
@@ -103,9 +103,9 @@ def get_train_tensor():
 
 def get_passenger_tensor():
     env1_delay_tensor = torch.Tensor([[
-        [float('nan'), float('nan'), float('nan')], # Spalten: Ziel
-        [float('nan'), float('nan'), float('nan')], # Zeile: aktueller Bahnhof
-        [float('nan'),  -12, float('nan')],
+        [float('nan'), float('nan'), float('nan')],  # Spalten: Ziel
+        [float('nan'), float('nan'), float('nan')],  # Zeile: aktueller Bahnhof
+        [float('nan'), -12, float('nan')],
         [float("nan"), float("nan"), float("nan")]
     ]])
 
@@ -219,16 +219,16 @@ def apply_action(train_progress, length_routes):
     train_station = (torch.isnan(train_pos_stations).logical_not() * 1).argmax(dim=2).max(dim=1).values
     reached_train_station = train_station.clone()
     reached_train_station = train_station[train_reached_dest]
-    if len(reached_train_station) == 0: return train_station # no possible actions
+    if len(reached_train_station) == 0: return train_station  # no possible actions
     possible_actions = torch.cartesian_prod(*adj[reached_train_station])
-    possible_actions = possible_actions
-    
+
     # choose action
     action = possible_actions[0]
-    #rerouting of trains
-    num_reroutable_trains = torch.sum(train_reached_dest)
-    new_train_stations = torch.zeros(num_reroutable_trains, train_station.shape[1], train_station.shape[2]) 
-    train_station[train_reached_dest]
+    # rerouting of trains
+    num_reroutable_trains = int(torch.sum(train_reached_dest))
+    new_train_stations = torch.zeros(num_reroutable_trains, length_routes_w_trains.shape[1], length_routes_w_trains.shape[2])
+    # train_station[train_reached_dest] = "dingas"
+
     return train_station
 
 
@@ -239,16 +239,15 @@ def onboard_passengers(train_dest, min_dot_req, idx_train, train_station, delay_
 
     swap_tensor1 = torch.LongTensor([passenger_current, idx_train])
     swap_tensor2 = torch.LongTensor([idx_train, passenger_current])
-    mask_stations_match = passenger_current == train_station
-    mask_passenger_in_train = passenger_current == idx_train
+    mask_stations_match = torch.BoolTensor(passenger_current == train_station)
+    mask_passenger_in_train = torch.BoolTensor(passenger_current == idx_train)
     mask_both = torch.logical_and(mask_stations_match, mask_passenger_in_train)
     swapped_delay_passenger = delay_passenger.clone()
-    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2] # swapping
+    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2]  # swapping
     delay_passenger = torch.where(mask_both, swapped_delay_passenger, delay_passenger)
 
-
     swapped_delay_passenger = delay_passenger.clone()
-    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2] # swapping
+    swapped_delay_passenger[:, swap_tensor1] = swapped_delay_passenger[:, swap_tensor2]  # swapping
     delay_passenger = torch.where(mask_stations_match, swapped_delay_passenger, delay_passenger)
 
     return delay_passenger
@@ -277,7 +276,7 @@ for _ in range(n_steps):
     delay_passenger = update_passenger_delay(delay_passenger)
 
     train_station = apply_action(train_progress, length_routes)
-    
+
     delay_passenger = onboard_passengers(0, 0, 3, train_station, delay_passenger)
-    
+
     print(delay_passenger)

@@ -1,27 +1,37 @@
-import policies.mcts_policy as mcts
-import utils
-from objects import EnvBlueprint
-from env import AbfahrtEnv
-from policies import ppo_policy
-import networkx as nx
+import pyautogui
+import cv2
+import numpy as np
+import time
+import keyboard
 
+from PIL import Image
 
-config = utils.ConfigParams(wandb_config=None)
-env_bp = EnvBlueprint()
-env_bp.random(n_max_stations=30)#read_txt("input/input_large.txt")
-env_bp.get()
-# env = AbfahrtEnv(config, mode="inference")
-# # ppo_model = ppo_policy.get_model(env, config)
-# # # ppo_model.load("models/v0")
-# env.inference_env_bp = env_bp
-# # observation = env.reset()
-# # mcts.something(observation, env, ppo_model)
-# env_bp.render()
-g = (env_bp.graph)
-# d = nx.d = nx.(g, dim=2)#, key=lambda x: x.key()))
-# (g, dim=2)#, key=lambda x: x.key()))
-print(g)
+x_click = 1899
+y_click = 184
+x = 482
+y = 160
+x2= 1438
+y2 = 875
+c = 0
+image_list = []
+try:
+    while True:
+        pyautogui.click(x_click, y_click)
+        time.sleep(1.5)
+        image = pyautogui.screenshot()
+        image = np.array(image)
+        image = image[y:y2, x:x2]
+        image = Image.fromarray(image)
 
+        image_list.append(image)
 
+        if keyboard.is_pressed('b'):
+            raise KeyboardInterrupt(":)")
 
-
+except KeyboardInterrupt as _:
+    print("jaaaaaaajaaaaaaaaaaaa")
+    try:
+        input()
+    except KeyboardInterrupt:
+        input()
+    image_list[0].save(r'mckirchy.pdf', save_all=True, append_images=image_list[1:])
