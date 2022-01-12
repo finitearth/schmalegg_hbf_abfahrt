@@ -19,18 +19,20 @@ class EnvBlueprint:
     def read_txt(self, file_path):
         with open(file_path, 'r') as f:
             text = f.read()
+
+        text = text.lower()
         text = "".join([t + "\n" for t in text.split("\n") if "#" not in t])
-        splits = re.split(r"(\[Stations\]|\[Lines\]|\[Passengers\]|\[Trains\])", text)
+        splits = re.split(r"(\[stations\]|\[lines\]|\[passengers\]|\[trains\])", text)
 
         for i, split in enumerate(splits):
-            if "[Stations]" in split:
-                stations_text = splits[i + 1].replace("[Stations]\n", "")
-            elif "[Lines]" in split:
-                lines_text = splits[i + 1].replace("[Lines]\n", "")
-            elif "[Passengers]" in split:
-                passengers_text = splits[i + 1].replace("[Passengers]\n", "")
-            elif "[Trains]" in split:
-                trains_text = splits[i + 1].replace("[Trains]\n", "")
+            if "[stations]" in split:
+                stations_text = splits[i + 1].replace("[stations]\n", "")
+            elif "[lines]" in split:
+                lines_text = splits[i + 1].replace("[lines]\n", "")
+            elif "[passengers]" in split:
+                passengers_text = splits[i + 1].replace("[passengers]\n", "")
+            elif "[trains]" in split:
+                trains_text = splits[i + 1].replace("[trains]\n", "")
 
         single_stations = stations_text.split('\n')
         station_list = []
