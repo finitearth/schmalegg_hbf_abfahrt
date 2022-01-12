@@ -199,7 +199,7 @@ def set_node_attributes(graph, stations, config):
         s.set_input_vector(d[int(s)], config=config)
 
 
-def maybe_performant_cart_product_vlt_maybe(tensor):
+def cart_prod(tensor):
     D = tensor.reshape(-1,1)
     _B = torch.stack([x.repeat(x.size(0)) for x in tensor]).reshape(-1)
     _D = D.view(-1,1).expand(tensor.size(0)*tensor.size(1),tensor.size(1)).reshape(-1)
