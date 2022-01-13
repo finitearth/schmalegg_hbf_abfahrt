@@ -1,6 +1,7 @@
 import torch
 import utils
 
+
 def close_or_greater(a, b):
     close = torch.isclose(a, b)
     greater = torch.greater(a, b)
@@ -36,7 +37,6 @@ def get_station_adj_routes():
         [0, 1, 0, 0, 1],  # station3
         [1, 1, 0, 0, 0],  # station4
         [1, 0, 0, 1, 0]  # station5
-        
 
     ])
     length_routes1 = torch.Tensor([
@@ -82,7 +82,7 @@ def get_train_tensor():
         ]
     ]])
 
-    env1_trains_velocity = torch.Tensor([0.88, 0.1, 0.5, 0.23 ])
+    env1_trains_velocity = torch.Tensor([0.88, 0.1, 0.5, 0.23])
 
     return env1_train_tensor, env1_trains_velocity
 
@@ -109,7 +109,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), -5, float('nan'), float('nan'), float('nan')],
+        [[float('nan'), -5, float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -118,7 +118,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), -40, float('nan'), float('nan')],
@@ -129,7 +129,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), -20, float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -138,7 +138,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -149,7 +149,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), -100, float('nan')],
@@ -158,7 +158,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), -30, float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -169,7 +169,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -178,7 +178,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -189,7 +189,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -198,7 +198,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[-15, float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -209,7 +209,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[-69, float('nan'), float('nan'), float('nan'), float('nan')],
+        [[-69, float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -218,7 +218,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), -88, float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -229,7 +229,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -238,7 +238,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -249,7 +249,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), -10],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -258,10 +258,10 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
-         [float('nan'), float('nan'), float('nan'), float('nan'),-11],
+         [float('nan'), float('nan'), float('nan'), float('nan'), -11],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -269,7 +269,7 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
+        [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
@@ -278,7 +278,7 @@ def get_passenger_tensor():
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
-         
+
         [[float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), float('nan'), float('nan'), float('nan'), float('nan')],
          [float('nan'), -47, float('nan'), float('nan'), float('nan')],
@@ -289,8 +289,6 @@ def get_passenger_tensor():
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')],
          [float("nan"), float("nan"), float("nan"), float('nan'), float('nan')]],
 
-         
-         
     ]])
 
     return env1_delay_tensor
@@ -327,8 +325,8 @@ def get_capacity_route_tensors():
 
 def update_train_pos(length_routes_, train_progress_):
     is_on_route = train_progress.isnan().logical_not()
-    train_pos_routes_ = torch.where(greater_not_close(length_routes_*is_on_route, train_progress_), 1., float("nan"))
-    train_pos_stations_ = torch.where(close_or_less(length_routes_*is_on_route, train_progress_), 1., float("nan"))
+    train_pos_routes_ = torch.where(greater_not_close(length_routes_ * is_on_route, train_progress_), 1., float("nan"))
+    train_pos_stations_ = torch.where(close_or_less(length_routes_ * is_on_route, train_progress_), 1., float("nan"))
     return train_pos_routes_, train_pos_stations_
 
 
@@ -348,44 +346,49 @@ def update_passenger_delay(delay_passenger_):
     return delay_passenger_ + 1
 
 
+# noinspection PyTypeChecker
 def onboard_passengers(train_progress_, length_routes_, train_pos_routes_, delay_passenger_):
     if train_pos_stations.isnan().all():  # no train in station
         return delay_passenger_
     length_routes_w_trains = length_routes_ * (train_pos_routes_.isnan().logical_not())
     train_reached_dest = greater_not_close(train_progress_, length_routes_w_trains).any(dim=2).any(dim=2)
     train_station_ = (torch.isnan(train_pos_stations).logical_not()).max(dim=-1).indices.max(dim=-1).values
+    train_station_reached = train_station_[None, train_reached_dest]
     passenger = torch.where(delay_passenger_.isnan(), 0, 1)
     train_range = torch.arange(train_pos_routes.shape[1])[None, ...]
-    idx_train = train_range[train_reached_dest].long() + n_stations
+    idx_train = train_range[None, ...][:, train_reached_dest].long() + n_stations
 
-    passenger_current = torch.transpose(passenger, 2, 3).sum(dim=2).argmax(dim=2).long()
+    passenger_current_station = torch.transpose(passenger, 2, 3).sum(dim=2).argmax(dim=2, keepdim=True).long().flatten(
+        start_dim=1)
     passenger_dest = passenger.sum(dim=2).argmax(dim=2).long()
-    reached_passenger = passenger_current == passenger_dest
+    passenger_left = passenger_current_station != passenger_dest
+    delay_passenger_ = delay_passenger_[None, passenger_left]
+    passenger_current_station = passenger_current_station[None, passenger_left]
+    passenger_dest = passenger_dest[None, passenger_left]
+    passenger = passenger[None, passenger_left]
+    range_passenger = torch.arange(passenger.shape[1])
 
-    n_passenger_current = passenger_current.shape[-1]
-    n_idx_train = idx_train.shape[-1]
+    passenger_reached_station = torch.where(passenger_current_station == train_station_reached, passenger_current_station, -1)
+    passenger_reached_station = passenger_reached_station[None, passenger_reached_station!=-1]
 
-    idx_train = torch.repeat_interleave(idx_train, max(1, n_passenger_current // n_idx_train))
-    passenger_current = torch.repeat_interleave(passenger_current, max(1, n_idx_train // n_passenger_current))
+    idx_train_pass = torch.where(train_station_reached == passenger_current_station, idx_train, -1)
+    idx_train_pass = idx_train_pass[None, idx_train_pass!=-1]
+    idx_pass_train = torch.where(passenger_current_station==train_station_reached, range_passenger, -1)
+    idx_pass_train = idx_pass_train[None, idx_pass_train!=-1]
 
-    swap_tensor1 = torch.vstack((passenger_current, idx_train))[None, ...]
-    swap_tensor2 = torch.vstack((idx_train, passenger_current))[None, ...]
-    range_passenger = torch.arange(len(passenger_current))
-    mask_passenger_in_train = (passenger_current == idx_train)
-    swapped_delay_passenger = delay_passenger_.clone()
-    swapped_delay_passenger[:, range_passenger, swap_tensor1] = swapped_delay_passenger[:,
-                                                                range_passenger, swap_tensor2]  # aussteigen
-    delay_passenger_[:, mask_passenger_in_train] = swapped_delay_passenger[:, mask_passenger_in_train]
-    #train_station_ = torch.repeat_interleave(train_station_, max(1, n_passenger_current // train_station_.shape[-1]))
-    train_reached_dest = greater_not_close(train_progress_, length_routes_w_trains).any(dim=2).any(dim=2)
-    train_reached_station_ = train_station_[train_reached_dest]
-    mask_stations_match = (passenger_current == train_reached_station_) 
-    swapped_delay_passenger = delay_passenger_.clone()
-    swapped_delay_passenger[:, range_passenger, swap_tensor1] = swapped_delay_passenger[:,
-                                                                range_passenger, swap_tensor2]  # einsteigen
-    delay_passenger_[:, mask_stations_match] = swapped_delay_passenger[:, mask_stations_match]
 
-    return delay_passenger_[None, torch.logical_not(reached_passenger)]
+    batch_range = torch.arange(1)
+    swap1 = [batch_range, idx_pass_train, passenger_reached_station]
+    swap2 = [batch_range, idx_pass_train, idx_train_pass]
+    delay_passengercop = delay_passenger_.clone()
+
+    delay_passenger_[swap1], delay_passenger_[swap2] = delay_passengercop[swap2], delay_passengercop[swap1]
+
+
+    return delay_passenger_
+
+
+
 
 
 def apply_action(train_progress_, length_routes_, train_pos_routes_, train_pos_stations_):
@@ -395,7 +398,7 @@ def apply_action(train_progress_, length_routes_, train_pos_routes_, train_pos_s
     length_routes_w_trains = length_routes_ * (train_pos_routes_.isnan().logical_not())
     train_reached_dest = greater_not_close(train_progress_, length_routes_w_trains).any(dim=2).any(dim=2)
     reached_train_station = train_station[train_reached_dest]
-    possible_actions = utils.cart_prod(adj[reached_train_station]*torch.arange(n_stations))
+    possible_actions = utils.cart_prod(adj[reached_train_station] * torch.arange(n_stations))
     row = train_station[train_reached_dest].repeat_interleave(
         possible_actions.size(dim=-1) // train_reached_dest.size(dim=-1))
     column = possible_actions.argmax(dim=-1, keepdim=True)
@@ -434,7 +437,7 @@ n_steps = 1_000
 
 for _ in range(n_steps):
     # print(_)
-    #capa_pos_routes_current = update_capa_routes(capa_route, train_pos_routes)
+    # capa_pos_routes_current = update_capa_routes(capa_route, train_pos_routes)
     capa_station_current = update_capa_station(capa_station, train_pos_stations)
     train_pos_routes, train_pos_stations = update_train_pos(length_routes, train_progress)
     train_progress = update_train_progress(vel, train_progress)
@@ -445,7 +448,5 @@ for _ in range(n_steps):
     train_pos_routes, train_pos_stations, train_progress = apply_action(train_progress, length_routes,
                                                                         train_pos_routes,
                                                                         train_pos_stations)
-
-                     
 
 #  TODO mask out full capas

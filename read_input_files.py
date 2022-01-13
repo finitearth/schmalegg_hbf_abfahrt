@@ -3,7 +3,7 @@ import re
 from objects import Station, Routes, PassengerGroup, Train
 
 
-def read_txt(file_path)
+def read_txt(file_path):
 
     with open(file_path, 'r') as f:
         text = f.read()
