@@ -1,5 +1,5 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:slim
+FROM python:3.8
 
 EXPOSE 8000
 ENV Var1=10
@@ -14,12 +14,11 @@ COPY requirements.txt .
 
 RUN python -m pip install -r requirements.txt
 
-RUN pip3 install torch==1.9.0+cpu torchvision==0.10.0+cpu torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-
-RUN pip3 install stable_baselines3
+RUN python -m pip install --upgrade pip
+RUN pip3 install torch
 RUN pip3 install torch_geometric
 RUN pip3 install torch_scatter
-RUN pip3 install torch_sparse
+
 
 WORKDIR /app
 COPY . /app
