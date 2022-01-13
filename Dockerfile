@@ -1,37 +1,33 @@
-FROM python:3.8
+# For more information, please refer to https://aka.ms/vscode-docker-python
+FROM python:slim
 
-ADD train_sweep.py .
-<<<<<<< Updated upstream
-ADD requirements.txt / 
-ADD callbacks.py /
-ADD utils.py / 
-ADD enviroments /
-ADD enviroments/env.py enviroments
-ADD enviroments/env2.py enviroments
-ADD enviroments/env3.py enviroments
-ADD enviroments/env4.py enviroments
-ADD policies /
-ADD main.py / 
-ADD objects.py / 
-ADD Pipfile / 
-ADD Pipfile.lock /
-=======
-ADD requirements.txt .
->>>>>>> Stashed changes
+EXPOSE 8000
+ENV Var1=10
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
 
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
 
+# Install pip requirements
+COPY requirements.txt .
 
-RUN pip install numpy
-RUN pip install matplotlib
-RUN pip install torch
-RUN pip install stable_baselines3
-RUN pip install torch_geometric
-RUN pip install gym
-RUN pip install wandb
-RUN pip install torch_scatter
-RUN pip install networkx
-RUN pip install torch_sparse 
+RUN python -m pip install -r requirements.txt
 
+RUN pip3 install torch==1.9.0+cpu torchvision==0.10.0+cpu torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 
-CMD ["python", "./train_sweep.py"]
+RUN pip3 install stable_baselines3
+RUN pip3 install torch_geometric
+RUN pip3 install torch_scatter
+RUN pip3 install torch_sparse
 
+WORKDIR /app
+COPY . /app
+
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
+# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
+RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
+# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
+CMD ["python", "env_tensor.py"]

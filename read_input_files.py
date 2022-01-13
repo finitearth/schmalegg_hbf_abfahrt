@@ -1,5 +1,5 @@
 import re
-
+import torch
 from objects import Station, Routes, PassengerGroup, Train
 
 
@@ -30,6 +30,7 @@ def read_txt(file_path):
         sss = Station(int(ss[0][1]), i)
         station_list.append(sss)
         stations_dict[ss[0]] = sss
+    print(stations_dict)
 
     routes = Routes()
     single_lines = lines_text.split('\n')
@@ -38,6 +39,7 @@ def read_txt(file_path):
         ll = l.split(" ")
         routes.add(stations_dict[ll[1]], stations_dict[ll[2]], stations_dict[ll[0]], stations_dict[ll][3],
                    stations_dict[ll][4])
+        print(routes)          
 
     single_trains = trains_text.split('\n')
     train_list = []
@@ -57,3 +59,5 @@ def read_txt(file_path):
         passenger.append(ppp)
         stations_dict[pp[1]].passengers.append(ppp)
     
+
+read_txt("input\input2.txt")
