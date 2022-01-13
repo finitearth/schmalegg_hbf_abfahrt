@@ -3,7 +3,10 @@ import re
 import torch
 from objects import Station, Routes, PassengerGroup, Train
 import networkx  as nx
+import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def read_txt(file_path):
 
@@ -16,59 +19,85 @@ def read_txt(file_path):
 
     for i, split in enumerate(splits):
         if "[stations]" in split:
-            stations_text = splits[i + 1].replace("[stations]\n", "")
+            single_stations = splits[i + 1].replace("[stations]\n", "").split('\n') 
         elif "[lines]" in split:
-            lines_text = splits[i + 1].replace("[lines]\n", "")
+            single_lines = splits[i + 1].replace("[lines]\n", "").split('\n') 
         elif "[passengers]" in split:
-            passengers_text = splits[i + 1].replace("[passengers]\n", "")
+            single_passengers = splits[i + 1].replace("[passengers]\n", "").split('\n') 
         elif "[trains]" in split:
-            trains_text = splits[i + 1].replace("[trains]\n", "")
+            single_trains = splits[i + 1].replace("[trains]\n", "").split('\n') 
 
-    single_stations = stations_text.split('\n')
-    station_list = []
-    stations_dict = {}
+
+    #Stations
     station_capa = []
+    station_name = []
     
     for i, s in enumerate([s for s in single_stations if s != "" and s != " "]):
         ss = s.split(" ")
-        station_list.append(ss)
-        stations_dict[ss[0]] = ss
+        station_name.append(ss[0])
         capacity = int(ss[1])
         station_capa.append(capacity)
-    
-    station_tensor_size = len(station_list)
-    stations_tensor = torch.zeros(station_tensor_size, station_tensor_size)
-    print(station_capa)
+    station_capa_tensor = torch.tensor(station_capa).unsqueeze(0)
 
-    routes = Routes()
-    single_lines = lines_text.split('\n')#
+
+    #Routes
     g = nx.Graph()
+    capa_route_list = []
     for l in single_lines:
         if l == "" or l == " ": continue
         ll = l.split(" ")
-        g.add_edge(ll[1], ll[2], label=ll[0], weight=-float(ll[3]))
-    d = nx.spring_layout(g, dim=4)
-    nx.draw(g)
-    plt.show()          
+        capa_route_list.append((ll[1],ll[2],ll[4]))
+        g.add_edge(ll[1], ll[2], weight=-float(ll[3]))
+
+    d = nx.spring_layout(g, dim=4, threshold=0.01)
+    vectors = np.array([v for v in d.values()])
+    vectors = torch.Tensor(vectors)
+    length_routes = nx.to_pandas_adjacency(g)
+    length_routes = length_routes.sort_index(axis=0)[station_name]
+    length_routes = torch.Tensor(length_routes.values)
+    adj = torch.where(length_routes==0, 0, 1)
+
+    capa_routes =  torch.zeros_like(length_routes).unsqueeze(0)
+    for s1, s2, capa in capa_route_list:
+        capa_routes[0, station_name.index(s1), station_name.index(s2)] = int(capa)
+        capa_routes[0, station_name.index(s2), station_name.index(s1)] = int(capa)
 
 
-    # single_trains = trains_text.split('\n')
-    # train_list = []
-    # for t in single_trains:
-    #     if t == "" or t == " ": continue
-    #     tt = t.split(" ")
-    #     ttt = stations_dict[tt[1]] if tt[1] != "*" else list(stations_dict.values())[0]
-    #     train_list.append(Train(ttt, int(tt[3]), name=int(tt[0][1:])))
+    #Trains
+    train_list = []
+    velocity = []
+    capacity = []
+    for t in single_trains:
+        if t == "" or t == " " or '*' in t: continue
+        tt = t.split(" ")
+        train_list.append(station_name.index(tt[1]))
+        velocity.append(float(tt[2]))
+        capacity.append(int(tt[3]))
 
-    # passengers_text = passengers_text.split('\n')
-    # passenger = []
-    # for p in passengers_text:
-    #     if p == "" or p == " ": continue
-    #     pp = p.split(" ")
-    #     ppp = PassengerGroup(start_station=stations_dict[pp[1]], destination=stations_dict[pp[2]], n_people=pp[3],
-    #                          target_time=pp[4])
-    #     passenger.append(ppp)
-    #     stations_dict[pp[1]].passengers.append(ppp)
+    vel =  torch.tensor(velocity)
+    cap_tensor =  torch.tensor(capacity)
+
+    train_pos_stations = torch.zeros((1,len(train_list),len(station_name),len(station_name)))
+    train_pos_stations[...] = float("nan")
+    for i, s in enumerate(train_list):
+        train_pos_stations[0, i, s, 0] = 0 
     
+    train_pos_routes = torch.zeros_like(train_pos_stations)
+    train_pos_routes[...] = float("nan")
+    # train with * variable position -> maybe OpenAI Hide and Seek? 
 
-read_txt("input\input5.txt")
+    #Trains
+    passenger = []
+    for p in single_passengers:
+        if p == "" or p == " ": continue
+        pp = p.split(" ")
+        passenger.append((pp[1],pp[2],pp[4]))
+    n_stations = len(station_name)
+    passenger_delay = torch.zeros((1, len(passenger), (n_stations+len(train_list)), n_stations))
+    for i, (s1, s2, delay) in enumerate(passenger):
+        j = station_name.index(s1)
+        k = station_name.index(s2)
+        passenger_delay[0, i, j, k] = -float(delay)
+
+
+    return vectors, adj, station_capa_tensor, capa_routes, cap_tensor, train_pos_stations, length_routes, vel, passenger_delay

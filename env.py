@@ -161,7 +161,7 @@ class AbfahrtEnv(gym.Env):
             g.add_edge(edge[0], edge[1])
         self.init_shortest_path_lengths = dict(networkx.shortest_path_length(g))
         self.shortest_path_lenghts = self.init_shortest_path_lengths
-        utils.set_node_attributes(g, self.stations, self.config)
+        utils.set_node_att)ributes(g, self.stations, self.config)
 
         self.min_steps_to_go = self.get_min_steps_to_go()
         self.active_passengers = sum([len(s.passengers) for s in self.stations])
