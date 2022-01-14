@@ -1,21 +1,27 @@
 import utils
 import torch
 
-def init_step(observation):
-    adj, capa_station, capa_route, capa_train, train_pos_stations, length_routes, train_progress, vel, delay_passenger = observation
-    train_pos_routes, train_pos_stations =  update_train_pos(length_routes, train_progress)
+
+def init_step(obs):
+    adj, capa_station, capa_route, capa_train, train_pos_stations, train_pos_routes, delay_passenger, length_routes, vel, vectors = obs
+    train_progress = torch.zeros_like(train_pos_stations)
+    train_pos_routes, train_pos_stations = update_train_pos(length_routes, train_progress)
     n_stations = len(adj[0])
-    possible_actions_train_to_stations, possible_actions_stations_to_stations = get_possible_actions(adj, train_progress, train_pos_stations, train_pos_routes, length_routes, n_stations)
-    observation = observation
-    done = False
-    validity = True
-    reward = 0
-    return done, observation, possible_actions_train_to_stations, possible_actions_stations_to_stations, validity, reward
+    pat2s, pas2s = get_possible_actions(adj,
+                                        train_progress,
+                                        train_pos_stations,
+                                        train_pos_routes,
+                                        length_routes,
+                                        n_stations)
+    dones = torch.Tensor([False])
+    validities = torch.Tensor([True])
+    rewards = torch.Tensor([0])
+    return dones, obs, pat2s, pas2s, validities, rewards
 
 
-def step(actions, observation, adj, vel, length_routes):
-    capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger = observation
-    n_batches = actions.shape[0]
+def step(actions, obs):
+    adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, vel, vectors = obs
+    n_batches = capa_station.shape[0]
     n_stations = len(adj[0])
 
     train_pos_routes, train_pos_stations = update_train_pos(length_routes, train_progress)
@@ -23,6 +29,7 @@ def step(actions, observation, adj, vel, length_routes):
     delay_passenger = update_passenger_delay(delay_passenger)
 
     delay_passenger = onboard_passengers(
+        vectors,
         train_progress,
         length_routes,
         train_pos_routes,
@@ -41,7 +48,12 @@ def step(actions, observation, adj, vel, length_routes):
     )
 
     observation = capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger
-    possible_actions_train_to_stations, possible_actions_stations_to_stations = get_possible_actions(adj, train_progress, train_pos_stations, train_pos_routes, length_routes, n_stations)
+    possible_actions_train_to_stations, possible_actions_stations_to_stations = get_possible_actions(adj,
+                                                                                                     train_progress,
+                                                                                                     train_pos_stations,
+                                                                                                     train_pos_routes,
+                                                                                                     length_routes,
+                                                                                                     n_stations)
 
     capa_station = update_capa_station(capa_station, train_pos_stations)
     capa_route = update_capa_routes(capa_route, train_pos_routes)
@@ -56,6 +68,7 @@ def step(actions, observation, adj, vel, length_routes):
 def get_done(delay_passenger):
     return len(delay_passenger) == 0
 
+
 def get_reward(delay_passenger):
     return delay_passenger.sum(dim=-1)
 
@@ -65,6 +78,7 @@ def get_possible_actions(adj, train_progress, train_pos_stations, train_pos_rout
     length_routesw_trains = length_routes * (train_pos_routes.isnan().logical_not())
     train_reached_dest = greater_not_close(train_progress, length_routesw_trains).any(dim=2).any(dim=2)
     reached_train_station = train_station[train_reached_dest]
+    if len(reached_train_station) == 0: return None, None
     possible_actions_train_to_stations = utils.cart_prod(adj[reached_train_station] * torch.arange(n_stations))
     train_range = torch.arange(train_pos_routes.shape[1])[None, ...]
     train_idx = train_range[None, ...][:, train_reached_dest].long() + n_stations
@@ -112,6 +126,7 @@ def apply_action(
 
 
 def onboard_passengers(
+        vectors,
         train_progress,
         length_routes,
         train_pos_routes,
@@ -145,8 +160,7 @@ def onboard_passengers(
     passenger = passenger[None, passenger_left]
     range_passenger = torch.arange(passenger.shape[1])
 
-    passenger_reached_station = torch.where(passenger_current_station == train_station_reached,
-                                            passenger_current_station, -1)
+    passenger_reached_station = torch.where(passenger_current_station == train_station_reached, passenger_current_station, -1)
     passenger_reached_station = passenger_reached_station[None, passenger_reached_station != -1]
 
     idx_train_pass = torch.where(train_station_reached == passenger_current_station, idx_train, -1)
@@ -154,9 +168,11 @@ def onboard_passengers(
     idx_pass_train = torch.where(passenger_current_station == train_station_reached, range_passenger, -1)
     idx_pass_train = idx_pass_train[None, idx_pass_train != -1]
 
+    advantage = (vectors[train_station_] - vectors[passenger_current_station]) @ vectors[passenger_dest] > 0
+
     batch_range = torch.arange(n_batches)
-    swap1 = [batch_range, idx_pass_train, passenger_reached_station] # batch dim passt nicht 100%ig
-    swap2 = [batch_range, idx_pass_train, idx_train_pass]
+    swap1 = [batch_range, idx_pass_train, passenger_reached_station][advantage]  # batch dim passt nicht 100%ig
+    swap2 = [batch_range, idx_pass_train, idx_train_pass][advantage]
     delay_passengercop = delay_passenger_.clone()
 
     delay_passenger_[swap1], delay_passenger_[swap2] = delay_passengercop[swap2], delay_passengercop[swap1]

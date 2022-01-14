@@ -1,12 +1,4 @@
-from objects import EnvBlueprint
-import env
+import torch
 
-
-fp = "input/input4.txt"
-if __name__ == '__main__':
-    env_bp = EnvBlueprint()
-    env_bp.read_txt(fp)
-    env_bp.render()
-
-    # env_inf = env.AbfahrtEnv(mode="inference", config=model.config)
-    # env_inf.inference_env = env_bp
+hi = torch.Tensor([69, 13, 12])
+print(hi)

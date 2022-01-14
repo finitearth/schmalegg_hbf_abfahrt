@@ -1,6 +1,5 @@
 import cv2
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Data, Batch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import add_self_loops

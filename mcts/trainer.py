@@ -4,9 +4,8 @@ from torch.utils.data import DataLoader
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.data import Data
 from torch_geometric.utils import add_self_loops
-
 import utils
-from mcts import MCTS
+from mcts.mcts import MCTS
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -16,48 +15,26 @@ class Trainer:
         self.value_net = value_net.to(device)
         self.policy_net = policy_net.to(device)
         self.config = config
-        self.pi_examples = []
-        self.v_examples = []
-        self.mcts = MCTS()
+        self.mcts = MCTS(self.value_net, self.policy_net, config)
 
         self.pi_optim = torch.optim.Adam(self.policy_net.parameters(), lr=self.config.lr_pi)
         self.v_optim = torch.optim.Adam(self.value_net.parameters(), lr=self.config.lr_v)
         # self.lr_pi = ExponentialLR(optimizer=self.pi_optim, gamma=.995)
         # self.lr_v = ExponentialLR(optimizer=self.v_optim, gamma=.995)
 
-    def execute_episode(self, root):
-        root = self.mcts.search(root)
-        pi_examples = []
-        v_examples = []
-        node = root
-        while not node.is_leaf():
-            best_child = node.get_best_child()
-            if node.observation is not None:
-                input, eic, eit, eid, batch = node.observation
-                actions = node.possible_actions
-                best_action = best_child.action
-                # one_hot = torch.where(actions[:, :]==best_action[None,:], True, False).all(dim=-1).flatten(start_dim=-2)*1.
-                target = (actions == best_action).all(dim=-1).nonzero(as_tuple=True)[0]
-                pi_example = PiData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, actions=actions,
-                                    target=target)
-                pi_examples.append(pi_example)
-
-                value = node.value_sum
-                # print(node.value_sum)
-                v_example = VData(x=input, c_edge_index=eic, t_edge_index=eit, d_edge_index=eid, target=value)
-                v_examples.append(v_example)
-
-                node = best_child
+    def execute_episodes(self, init_obs):
+        best_action_history, best_reward_history = self.mcts.search(init_obs)
+        v_examples = VData(best_reward_history)
+        pi_examples = PiData(best_action_history)
 
         return pi_examples, v_examples
 
-    def train(self, pi_examples, v_examples):
+    def optimize(self, pi_examples, v_examples, n_epochs=8):
         pi_data_loader = DataLoader(pi_examples, batch_size=256, shuffle=True, collate_fn=utils.collate) #self.config.batch_size_pi
         v_data_loader = PyGDataLoader(v_examples, batch_size=256, shuffle=True)  # self.config.batch_size_v
-        print(f"Batchcount: {len(v_data_loader)}")
+
         l_pi_function = nn.CrossEntropyLoss()
         l_v_function = nn.MSELoss()
-        n_epochs = 8  # self.config.n_epochs):
         for epoch in range(n_epochs):
             pi_losses, v_losses, pi_acc, v_expvar, batches = [], [], [], [], []
             for x in iter(pi_data_loader):
