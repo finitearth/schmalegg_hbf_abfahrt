@@ -1,3 +1,4 @@
 networkx==2.6.3
 numpy==1.21.4
 algorithmx==2.0.3
+torch

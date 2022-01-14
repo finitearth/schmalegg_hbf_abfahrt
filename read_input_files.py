@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def read_txt(file_path):
-
+def read_txt():
+    file_path = str(input())
     with open(file_path, 'r') as f:
         text = f.read()
 
@@ -99,5 +99,5 @@ def read_txt(file_path):
         k = station_name.index(s2)
         passenger_delay[0, i, j, k] = -float(delay)
 
-
+    print(file_path)
     return vectors, adj, station_capa_tensor, capa_routes, cap_tensor, train_pos_stations, length_routes, vel, passenger_delay
