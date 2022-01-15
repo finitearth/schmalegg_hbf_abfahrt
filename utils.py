@@ -3,6 +3,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch_geometric.data import Data, Batch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import add_self_loops
+from torch_sparse import SparseTensor
 
 import wandb
 from PIL import Image, ImageDraw
@@ -203,3 +204,10 @@ def cart_prod(tensor):
     _B = torch.stack([x.repeat(x.size(0)) for x in tensor]).reshape(-1)
     _D = D.view(-1,1).expand(tensor.size(0)*tensor.size(1),tensor.size(1)).reshape(-1)
     return torch.stack([_D, _B]).T.reshape(tensor.size(0),tensor.size(1)**2,2)
+
+
+def to_sparse_tensor(tensor):
+    sparse_copy = tensor.to_sparse()
+    sparse_tensor = SparseTensor(row=sparse_copy.indices()[0], col=sparse_copy.indices()[1], value=sparse_copy.values(), sparse_sizes=sparse_copy.size())
+
+    return sparse_tensor
