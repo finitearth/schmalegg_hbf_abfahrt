@@ -4,7 +4,6 @@ import networkx as nx
 import numpy as np
 import torch
 from networkx import fast_gnp_random_graph
-from tqdm import tqdm
 
 from mcts.trainer import Trainer
 from mcts.value_net import ValueNet
@@ -41,10 +40,10 @@ def evaluate():
 
 
 def generate_random_env():
-    n_max_stations = 1000
+    n_max_stations = 100
     n_stations = int(max(7, n_max_stations * random.random()))
     max_length = 15
-    n_max_trains = 50
+    n_max_trains = 24
     n_trains = int(max(7, n_max_trains * random.random()))
     max_speed = 10
     n_max_passenger = 1000

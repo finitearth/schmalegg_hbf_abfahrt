@@ -103,3 +103,47 @@ class MCTS:
     def get_best_action_history(self):
         dones_action_histories = self.action_histories_dones
         return None, None#max(dones_action_histories, key=lambda x: x[1])[0]
+
+
+class StepLogger:
+    def __init__(self, passenger_str, trains_str, stationandtrains_str, route_str, routes_dict):
+        self.passenger_str = passenger_str
+        self.trains_str = trains_str
+        self.route_str = route_str
+        self.stationsandtrains_str = stationandtrains_str
+        self.passenger_log = {p: [] for p in passenger_str}
+        self.train_log = {t: [] for t in trains_str}
+        self.routes_dict = routes_dict
+        self.step = 1
+
+    def inc_step(self):
+        self.step += 1
+
+    def boarding_passenger(self, tensor):
+        for stationtrain, passenger in tensor:
+            stationtrain = self.stationsandtrains_str[stationtrain]
+            self.passenger_log[self.passenger_str[passenger]].append(f"{self.step} Board {stationtrain}")
+
+    def redirect_train(self, s2s, t2s):
+        for (train, station2), (station1, _) in zip(t2s.squeeze(), s2s.squeeze()):
+            direct_to = self.routes_dict[(station1, station2)]
+            self.train_log[self.trains_str[train]].append(f"{self.step} Depart {direct_to}")
+
+    def init_train(self, train_idx, start_station):
+        start_station = self.stationsandtrains_str[start_station]
+        self.train_log[self.trains_str[train_idx]].append(f"0 Start {start_station}")
+
+    def save_log(self, filename):
+        log = ""
+        for p, c in self.passenger_log.values():
+            log += f"\n[Passenger:{p}\n]"
+            for s in c:
+                log += s + "\n"
+
+        for t, c in self.train_log.values():
+            log += f"\n[Train:{t}]\n"
+            for s in c:
+                log += s + "\n"
+
+        with open(filename, "w") as f:
+            f.write(log)

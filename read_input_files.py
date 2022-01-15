@@ -1,10 +1,6 @@
-from cProfile import label
 import re
 import torch
-from objects import Station, Routes, PassengerGroup, Train
 import networkx  as nx
-import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -16,16 +12,19 @@ def read_txt():
     text = text.lower()
     text = "".join([t + "\n" for t in text.split("\n") if "#" not in t])
     splits = re.split(r"(\[stations\]|\[lines\]|\[passengers\]|\[trains\])", text)
-
+    single_stations = ""
+    single_lines = ""
+    single_passengers = ""
+    single_trains = ""
     for i, split in enumerate(splits):
         if "[stations]" in split:
-            single_stations = splits[i + 1].replace("[stations]\n", "").split('\n') 
+            single_stations += splits[i + 1].replace("[stations]\n", "").split('\n')
         elif "[lines]" in split:
-            single_lines = splits[i + 1].replace("[lines]\n", "").split('\n') 
+            single_lines += splits[i + 1].replace("[lines]\n", "").split('\n')
         elif "[passengers]" in split:
-            single_passengers = splits[i + 1].replace("[passengers]\n", "").split('\n') 
+            single_passengers += splits[i + 1].replace("[passengers]\n", "").split('\n')
         elif "[trains]" in split:
-            single_trains = splits[i + 1].replace("[trains]\n", "").split('\n') 
+            single_trains += splits[i + 1].replace("[trains]\n", "").split('\n')
 
 
     #Stations

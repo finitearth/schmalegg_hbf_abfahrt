@@ -200,10 +200,10 @@ def set_node_attributes(graph, stations, config):
 
 
 def cart_prod(tensor):
-    D = tensor.reshape(-1,1)
+    D = tensor.reshape(-1, 1)
     _B = torch.stack([x.repeat(x.size(0)) for x in tensor]).reshape(-1)
-    _D = D.view(-1,1).expand(tensor.size(0)*tensor.size(1),tensor.size(1)).reshape(-1)
-    return torch.stack([_D, _B]).T.reshape(tensor.size(0),tensor.size(1)**2,2)
+    _D = D.view(-1, 1).expand(tensor.size(0)*tensor.size(1), tensor.size(1)).reshape(-1)
+    return torch.stack([_D, _B]).T.reshape(tensor.size(0), tensor.size(1)**2, 2)
 
 
 def to_sparse_tensor(tensor):
