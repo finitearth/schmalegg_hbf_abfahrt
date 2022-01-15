@@ -4,8 +4,7 @@ import networkx  as nx
 import numpy as np
 
 
-def read_txt():
-    file_path = str(input())
+def read_txt(file_path):
     with open(file_path, 'r') as f:
         text = f.read()
 

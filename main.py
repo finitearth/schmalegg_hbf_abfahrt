@@ -1,4 +1,6 @@
-import torch
+import read_input_files
 
-hi = torch.Tensor([69, 13, 12])
-print(hi)
+
+file = str(input())
+read_input_files.read_txt(file)
+print(file)
