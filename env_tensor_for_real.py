@@ -84,16 +84,20 @@ def get_possible_actions(adj, train_progress, train_pos_stations, train_pos_rout
     length_routesw_trains = length_routes * (train_pos_routes.isnan().logical_not())
     train_reached_dest = greater_not_close(train_progress, length_routesw_trains).any(dim=2).any(dim=2)
     reached_train_station = train_station[train_reached_dest]
-    train_range = torch.arange(train_progress.shape[1])[None,...][train_reached_dest] + n_stations
+    train_range = torch.arange(train_progress.shape[1])[None, ...][train_reached_dest] + n_stations
     if len(reached_train_station) == 0: return None, None
-    a, b = (adj[reached_train_station] == 1).nonzero(as_tuple=True)
-    single_possible_actions = to_dense_batch(b, a, fill_value=-1)[0]
-    single_possible_actions = single_possible_actions.type(torch.int32)
-    # single_t2s_actions = torch.vstack((torch.arange(n_trains), single_possible_actions))
-    possible_actions_train_to_stations = torch.cartesian_prod(*single_possible_actions.T)
-    possible_actions_stations_to_stations = torch.hstack((train_range, possible_actions_train_to_stations[:, :, 1]))
-
-    return possible_actions_train_to_stations, possible_actions_stations_to_stations
+    trains, stations = (adj[reached_train_station] == 1).nonzero(as_tuple=True)
+    single_possible_actions = to_dense_batch(stations, trains, fill_value=-1)[0]
+    single_possible_actions_ = single_possible_actions[(single_possible_actions!=-1).all(dim=-1)]
+    if single_possible_actions_.shape: # if there is only one possible action, there is no need for cart prod.
+        actions = single_possible_actions.T[0]
+    else:
+        single_possible_actions = single_possible_actions.type(torch.int32)
+        actions = torch.cartesian_prod(*single_possible_actions.T)
+        actions = actions[actions!=-1]
+    pat2s = torch.hstack((train_range[..., None], actions[..., None]))
+    pas2s = torch.hstack((reached_train_station[..., None], actions[..., None]))
+    return pat2s, pas2s
 
 
 def apply_action(

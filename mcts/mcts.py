@@ -63,11 +63,29 @@ class MCTS:
         if pat2s is None: return None, obs
         n_obs = obs[-1].shape[0]
         n_choices = min(pas2s.shape[0], batch_size // n_obs)
-        with torch.no_grad():
-            ps = self.policy_net(obs, pas2s)
-        best_idx = torch.sort(ps).indices[:n_choices]
+        adj, _, _, _, _, _, delay_passenger, _, train_pos_routes, _, vectors = obs
 
-        return pat2s[best_idx], obs[best_idx]
+        pass_adj = torch.where(delay_passenger.isnan(), torch.tensor(0, dtype=torch.float32), delay_passenger)
+        n_stationsplustrains = vectors.shape[1]
+        pass_adj = pass_adj.sum(-3)
+        pass_adj = pass_adj[:, :n_stationsplustrains, :]
+        vectors = vectors  # [:, :n_stationsplustrains, :]
+
+        train_adj = torch.where(train_pos_routes.isnan(), torch.tensor(0, dtype=torch.float32), train_pos_routes)
+        train_adj = train_adj.sum(dim=1)
+        train_adj = train_adj[:, :n_stationsplustrains, :n_stationsplustrains]
+        batch = torch.div(vectors[0, :, 0].nonzero(as_tuple=True)[0], n_stationsplustrains, rounding_mode='floor')
+        vectors = vectors.squeeze()
+        (adj, adj_attr), (pass_adj, pass_adj_attr), (train_adj, train_adj_attr) = dense_to_sparse(adj), dense_to_sparse(
+            pass_adj), dense_to_sparse(train_adj)
+
+        with torch.no_grad():
+            ps = self.policy_net(pas2s, vectors, adj, adj_attr, pass_adj, pass_adj_attr, train_adj, train_adj_attr, batch)
+        best_idx = 0#torch.sort(ps).indices[:n_choices]
+
+        # obs = obs[0], obs[1][best_idx], obs[2][best_idx], obs[3][best_idx], obs[4][best_idx], obs[5], obs[6][best_idx], obs[7], obs[8][best_idx], obs[9][best_idx], obs[10][best_idx]
+
+        return pat2s, obs#[best_idx], obs
 
     def update_action_history(self, actions, validities, dones, rewards):
         if actions is None: return

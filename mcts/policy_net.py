@@ -34,37 +34,24 @@ class PolicyNet(nn.Module):
         self.dest_vecs = None
         self.start_vecs = None
 
-    def forward(self, actions, obs, eic, eid, eit, batch):
-        x = self.conv1(obs, eit)
+    def forward(self, actions, x, adj, adj_attr, pass_adj, pass_adj_attr,  train_adj, train_adj_attr, batch):
+        x = self.conv1(x, train_adj, train_adj_attr)
         x = torch.relu(x)
-        x = self.conv2(x, eic)
+        x = self.conv2(x, adj, adj_attr)
         x = torch.relu(x)
-        x = self.conv3(x, eid)
+        x = self.conv3(x, pass_adj, pass_adj_attr)
         x = torch.relu(x)
         x = self.lin2(x)
         x = torch.relu(x)
 
-        x = self.conv3(x, eit)
-        x = torch.relu(x)
-        x = self.conv4(x, eic)
-        x = torch.relu(x)
-        x = self.conv5(x, eid)
-        x = torch.relu(x)
-        x = self.lin3(x)
-        x = torch.relu(x)
-
-        # x = self.conv7(x, eit)
-        # x = torch.tanh(x)
-        # x = self.conv8(x, eic)
-        # x = torch.tanh(x)
-        # x = self.conv9(x, eid)
-        # x = torch.tanh(x)
-        # x = self.lin4(x)
-        # x = torch.tanh(x)
-
-        # for lin in self.lins:
-        #     x = lin(x)
-        #     x = torch.tanh(x)
+        # x = self.conv3(x, train_adj, train_adj_attr)
+        # x = torch.relu(x)
+        # x = self.conv4(x, adj, train_adj_attr)
+        # x = torch.relu(x)
+        # x = self.conv5(x, pass_adj, pass_adj_attr)
+        # x = torch.relu(x)
+        # x = self.lin3(x)
+        # x = torch.relu(x)
 
         x = self.lins(x)
         x = self.lin1(x)
@@ -72,11 +59,10 @@ class PolicyNet(nn.Module):
         start_vecs = x[:, :, :self.n]
         dest_vecs = x[:, :, self.n:]
 
-        starts = start_vecs[:, actions[:, :, 0].flatten()]  # ALARM SIEHE GET POSSIBLE ACTIONS -.-
-        dests = dest_vecs[:, actions[:, :, 1].flatten()]
+        starts = start_vecs[:, actions[:, 0].flatten()]#:,
+        dests = dest_vecs[:, actions[:, 1].flatten()]#:,
 
         probs = torch.einsum('bij,bij->bj', starts, dests)
-
         probs = self.softmax(probs)
 
         return probs
