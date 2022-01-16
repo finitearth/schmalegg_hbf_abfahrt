@@ -11,6 +11,7 @@ class ValueNet(nn.Module):
         self.lins = Sequential('x', [(Linear(hidden_neurons, hidden_neurons), 'x->x')
                                      for _ in range(2)])
         self.lin1 = Linear(hidden_neurons, 1)
+        self.bn = BatchNorm(hidden_neurons)
 
         self.conv1 = GCNConv(config.n_node_features, config.n_node_features, normalize=False, aggr=config.aggr_con)
         self.conv2 = GCNConv(config.n_node_features, config.hidden_neurons, normalize=False, aggr=config.aggr_con)

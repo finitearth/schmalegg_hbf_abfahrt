@@ -11,10 +11,10 @@ def read_txt(file_path):
     text = text.lower()
     text = "".join([t + "\n" for t in text.split("\n") if "#" not in t])
     splits = re.split(r"(\[stations\]|\[lines\]|\[passengers\]|\[trains\])", text)
-    single_stations = ""
-    single_lines = ""
-    single_passengers = ""
-    single_trains = ""
+    single_stations = []
+    single_lines = []
+    single_passengers = []
+    single_trains = []
     for i, split in enumerate(splits):
         if "[stations]" in split:
             single_stations += splits[i + 1].replace("[stations]\n", "").split('\n')

@@ -1,5 +1,3 @@
-import random
-
 import cv2
 from torch.nn.utils.rnn import pad_sequence
 from torch_geometric.data import Data, Batch
@@ -201,19 +199,12 @@ def set_node_attributes(graph, stations, config):
         s.set_input_vector(d[int(s)], config=config)
 
 
-def cart_prod(tensors):
-    n_batches =  tensors.shape[0]
-    batches = tuple()
-    for i in range(n_batches):
-        tensor_list = []
-        for tensor in tensors[i]:
-            m = tensor.shape[-1]
-            k = random.randint(0, m-5) if m > 5 else 5
-            tensor_list.append(tensor[tensor!=-1][k:k+5])
-        batches += (torch.cartesian_prod(*tensor_list),)
+def cart_prod(tensor):
+    D = tensor.reshape(-1, 1)
+    _B = torch.stack([x.repeat(x.size(0)) for x in tensor]).reshape(-1)
+    _D = D.view(-1, 1).expand(tensor.size(0)*tensor.size(1), tensor.size(1)).reshape(-1)
+    return torch.stack([_D, _B]).T.reshape(tensor.size(0), tensor.size(1)**2, 2)
 
-    if n_batches == 1: return batches[0].unsqueeze(0)
-    else: return torch.vstack(batches)
 
 
 def to_sparse_tensor(tensor):
