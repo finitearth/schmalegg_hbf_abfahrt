@@ -60,10 +60,12 @@ class MCTS:
         return values
 
     def choose_actions(self, obs, pat2s, pas2s):
-        if pat2s is None or pat2s.shape[1] == 0: return None, obs
+
+        if pat2s is None or pat2s.shape[0] == 0: return None, obs
+
         n_acs = pat2s.shape[0]
         print(n_acs)
-        n_obs = obs[-2].shape[-1]
+        n_obs = obs[-3].shape[-1]
         n_choices = min(pas2s.shape[0], batch_size // n_obs)
         adj, _, _, _, _, _, delay_passenger, _, train_pos_routes, _, vectors = obs
         if batch_size<n_acs:
@@ -82,16 +84,17 @@ class MCTS:
 
             with torch.no_grad():
                 ps = self.policy_net(pas2s, vectors, adj, adj_attr, pass_adj, pass_adj_attr, train_adj, train_adj_attr, batch)
-            best_idx = torch.sort(ps).indices[:n_choices]
+            best_idx = torch.sort(ps).indices[..., :n_choices]
             adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, train_pos_routes, vel, vectors = obs
-            obs = adj, capa_station, capa_route, capa_train, train_pos_stations.expand(n_acs, -1, -1, -1), train_progress.expand(n_acs, -1, -1, -1), delay_passenger.expand(n_acs, -1, -1, -1), length_routes, train_pos_routes.expand(n_acs, -1, -1, -1), vel, vectors
+            obs = adj, capa_station, capa_route, capa_train, train_pos_stations.expand(n_choices, -1, -1, -1), train_progress.expand(n_choices, -1, -1, -1), delay_passenger.expand(n_choices, -1, -1, -1), length_routes, train_pos_routes.expand(n_choices, -1, -1, -1), vel, vectors
             adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, train_pos_routes, vel, vectors = obs
-            obs = adj, capa_station, capa_route, capa_train, train_pos_stations[best_idx, ...], train_progress[best_idx, ...], delay_passenger[best_idx, ...], length_routes, train_pos_routes[best_idx, ...], vel, vectors
+            obs = adj, capa_station, capa_route, capa_train, train_pos_stations[best_idx, ...][0], train_progress[best_idx, ...][0], delay_passenger[best_idx, ...][0], length_routes, train_pos_routes[best_idx, ...][0], vel, vectors
             return pat2s, obs
 
         else:
+            n_m = max(1, n_acs)
             adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, train_pos_routes, vel, vectors = obs
-            obs = adj, capa_station, capa_route, capa_train, train_pos_stations.expand(n_acs, -1, -1, -1), train_progress.expand(n_acs, -1, -1, -1), delay_passenger.expand(n_acs, -1, -1, -1), length_routes, train_pos_routes.expand(n_acs, -1, -1, -1), vel, vectors
+            obs = adj, capa_station, capa_route, capa_train, train_pos_stations.expand(n_m, -1, -1, -1), train_progress.expand(n_m, -1, -1, -1), delay_passenger.expand(n_m, -1, -1, -1), length_routes, train_pos_routes.expand(n_m, -1, -1, -1), vel, vectors
             return pat2s, obs
 
     def update_action_history(self, actions, validities, dones, rewards):

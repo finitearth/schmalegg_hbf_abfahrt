@@ -39,11 +39,11 @@ def evaluate():
 
 
 def generate_random_env():
-    n_max_stations = 64
-    n_stations = int(max(7, n_max_stations * random.random()))
+    n_max_stations = 12
+    n_stations = int(max(3, n_max_stations * random.random()))
     max_length = 15
-    n_max_trains = 64
-    n_trains = int(max(7, n_max_trains * random.random()))
+    n_max_trains = 12
+    n_trains = int(max(2, n_max_trains * random.random()))
     max_speed = 10
     n_max_passenger = 100
     n_passenger = int(max(7, n_max_passenger * random.random()))

@@ -215,6 +215,7 @@ def cart_prod(tensors):
     if n_batches == 1: return batches[0].unsqueeze(0)
     else: return torch.vstack(batches)
 
+
 def to_sparse_tensor(tensor):
     sparse_copy = tensor.to_sparse()
     sparse_tensor = SparseTensor(row=sparse_copy.indices()[0], col=sparse_copy.indices()[1], value=sparse_copy.values(), sparse_sizes=sparse_copy.size())

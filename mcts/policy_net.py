@@ -59,10 +59,10 @@ class PolicyNet(nn.Module):
         start_vecs = x[:, :, :self.n]
         dest_vecs = x[:, :, self.n:]
 
-        starts = start_vecs[:, actions[:, 0].flatten()]#:,
-        dests = dest_vecs[:, actions[:, 1].flatten()]#:,
+        starts = start_vecs[:, actions[..., 0]]#
+        dests = dest_vecs[:, actions[..., 1]]
 
-        probs = torch.einsum('bij,bij->bj', starts, dests)
+        probs = torch.einsum('bijk,bijk->bi', starts, dests)
         probs = self.softmax(probs)
 
         return probs

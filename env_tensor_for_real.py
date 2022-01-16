@@ -27,9 +27,7 @@ def step(actions, obs, logger=None):
     n_batches = capa_station.shape[0]
     n_stations = len(adj[0])
 
-    train_progress = update_train_progress(vel, train_progress)
-    train_pos_routes, train_pos_stations = update_train_pos(length_routes, train_progress)
-    delay_passenger = update_passenger_delay(delay_passenger)
+
 
     delay_passenger = onboard_passengers(
         vectors,
@@ -57,7 +55,9 @@ def step(actions, obs, logger=None):
                                                                                                      train_pos_routes,
                                                                                                      length_routes,
                                                                                                      n_stations)
-
+    train_progress = update_train_progress(vel, train_progress)
+    train_pos_routes, train_pos_stations = update_train_pos(length_routes, train_progress)
+    delay_passenger = update_passenger_delay(delay_passenger)
     capa_station = update_capa_station(capa_station, train_pos_stations)
     capa_route = update_capa_routes(capa_route, train_pos_routes)
     observation = adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, train_pos_routes, vel, vectors
@@ -116,7 +116,7 @@ def apply_action(
         return train_pos_routes, train_pos_stations, train_progress
     train_station = (torch.isnan(train_pos_stations).logical_not()).max(dim=-1).indices.max(dim=-1).values
     length_routesw_trains = length_routes * (train_pos_routes.isnan().logical_not())
-    train_reached_dest = greater_not_close(train_progress, length_routesw_trains).any(dim=2).any(dim=2)
+    train_reached_dest = greater_not_close(train_progress, length_routesw_trains).any(dim=2).any(dim=1)
     length_routesw_trains = length_routes * (train_pos_routes.isnan().logical_not())
     row = actions[..., 0].long()  # train_station[train_reached_dest].repeat_interleave(actions.size(dim=-2) // train_reached_dest.size(dim=0))
     column = actions[..., 1].long()  # actions.argmax(dim=0, keepdim=True)
@@ -124,18 +124,23 @@ def apply_action(
     # rerouting of trains
     n_trains = train_pos_routes.shape[-1]
     n_actions = len(actions)
-    new_train_stations = torch.zeros(n_batches, n_actions, n_trains, length_routesw_trains.shape[-1],
-                                     length_routesw_trains.shape[-2])
-    new_train_stations[torch.arange(n_batches), torch.arange(n_trains), row, column] = 1  # torch.arange(actions.shape[0]),
+    new_train_stations = torch.zeros(n_batches, n_trains, row.shape[0], column.shape[0])
+    batches, _ = row.nonzero(as_tuple=True)
+    try:
+        new_train_stations[batches, torch.arange(n_trains).expand_as(train_reached_dest)[train_reached_dest], row.flatten(), column.flatten()] = 1
+    except Exception as e:
+        print()
+        raise e
 
-    new_train_pos_routes = torch.where(new_train_stations == 1, 0., float("nan"))
+    new_train_pos_routes = train_pos_routes.clone()
+    new_train_pos_routes = torch.where(train_reached_dest, new_train_stations, train_pos_routes)
     new_train_pos_stations = train_pos_stations.clone()
     new_train_pos_stations[...] = float("nan")
     new_train_progress = torch.where(new_train_stations == 1, 0., float("nan"))
 
-    train_pos_routes[train_reached_dest] = new_train_pos_routes
+    train_pos_routes[train_reached_dest] = new_train_pos_routes[train_reached_dest]
     train_pos_stations[train_reached_dest] = new_train_pos_stations[train_reached_dest]
-    train_progress[train_reached_dest] = new_train_progress
+    train_progress[train_reached_dest] = new_train_progress[train_reached_dest]
 
     return train_pos_routes, new_train_pos_stations, train_progress
 
@@ -158,19 +163,30 @@ def onboard_passengers(
     """
     if train_pos_stations.isnan().all():  # no train in station
         return delay_passenger
-
+    n_batches = delay_passenger.shape[0]
+    n_trains = train_pos_routes.shape[-3]
+    n_passenger = delay_passenger.shape[-3]
     length_routesw_trains = length_routes * (train_pos_routes.isnan().logical_not())
     train_reached_dest = greater_not_close(train_progress, length_routesw_trains).any(dim=2).any(dim=2)
-    train_station = (torch.isnan(train_pos_stations).logical_not()).max(dim=-1).indices.max(dim=-1).values
-    train_dest = (torch.isnan(torch.transpose(train_pos_stations, 1, 2)).logical_not()).max(dim=-1).indices.max(
-        dim=-1).values
-    train_dest = torch.where(train_reached_dest, train_dest.expand_as(train_reached_dest), -1)
+    # train_station = (torch.isnan(train_pos_stations).logical_not()).max(dim=-1).indices.max(dim=-1).values
+    # train_dest = (torch.isnan(torch.transpose(train_pos_stations, 1, 2)).logical_not()).max(dim=-1).indices.max(
+    #     dim=-1).values
+    train_station = -torch.ones((n_batches, n_trains)).long()
+    train_dest = -torch.ones((n_batches, n_trains)).long()
+    try:
+        batch, train, train_station_, train_dest_ = torch.isnan(train_pos_stations).logical_not().nonzero(as_tuple=True)
+    except Exception as e:
+        print(":)")
+        raise e
+    train_dest[batch, train] = train_dest_
+    train_station[batch, train] = train_station_
+    # train_station = to_dense_batch(train_station, batch)[0]
+    # train_dest = to_dense_batch(train_dest, batch)[0]
+    # train_dest = torch.where(train_reached_dest, train_dest, -1)
 
     reached_train_station = torch.zeros(train_reached_dest.shape[0], train_station.shape[1], dtype=torch.long)
     reached_train_station[...] = train_station#[train_reached_dest]
 
-    n_trains = train_pos_routes.shape[-3]
-    n_passenger = delay_passenger.shape[-3]
 
     # deboard all pasengers from trains, in order to only have the most "important" passengers on board
     delay_passenger = boarding(vectors, train_reached_dest, delay_passenger, train_station, train_dest, reached_train_station, train_capa,
@@ -192,12 +208,10 @@ def boarding(vectors, train_reached_dest, delay_passenger, train_station, train_
     n_batches = train_reached_dest.shape[0]
 
     if onboarding:
-        print("onboarding")
-        train_vec = torch.where(train_reached_dest, train_station, -1)#.expand_as(train_reached_dest), -1)
+        train_vec = train_station#torch.where(train_reached_dest, train_station, -1)#.expand_as(train_reached_dest), -1)
         train_matrices = train_vec[..., None].expand(-1, -1, n_passenger)
 
     else:  # passenger is in train
-        print("deboarding")
         train_idx = torch.where(train_reached_dest, torch.arange(n_trains).expand_as(train_reached_dest), -1)
         train_matrices = train_idx[..., None].expand(n_batches, -1, n_passenger)
 
@@ -209,9 +223,13 @@ def boarding(vectors, train_reached_dest, delay_passenger, train_station, train_
     batch_req, train_req, pass_req = req.nonzero(as_tuple=True)
 
     if onboarding:
-        vectors_dest_train = vectors[batch_req, train_dest[batch_req, train_req]]
-        vectors_dest_pass = vectors[batch_req, passenger_dest[batch_req, pass_req]]
-        vectors_current = vectors[batch_req, passenger_current[batch_req, pass_req]]
+        try:
+            vectors_dest_train = vectors[0, train_dest[batch_req, train_req]]
+        except Exception as e:
+            print(":(")
+            raise e
+        vectors_dest_pass = vectors[0, passenger_dest[batch_req, pass_req]]
+        vectors_current = vectors[0, passenger_current[batch_req, pass_req]]
         advantage = torch.einsum('ij,ij->i', vectors_dest_train - vectors_current, vectors_dest_pass)
         mask = (advantage > 0)  # mask lacking capas
 
