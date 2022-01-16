@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 batch_size = 256
 
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class MCTS:
     def __init__(self, value_net, policy_net, config):
         self.value_net = value_net

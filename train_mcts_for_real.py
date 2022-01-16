@@ -10,11 +10,12 @@ from mcts.value_net import ValueNet
 from mcts.policy_net import PolicyNet
 from utils import ConfigParams
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def main():
     config = ConfigParams()
-    value_net = ValueNet(config=config)
-    policy_net = PolicyNet(config=config)
+    value_net = ValueNet(config=config).to(device)
+    policy_net = PolicyNet(config=config).to(device)
     trainer = Trainer(value_net=value_net, policy_net=policy_net, config=config)
 
     for i in range(1024):
@@ -93,6 +94,8 @@ def generate_random_env():
     capa_route[:, length_routes!=float("nan")] = max_capa_route
     capa_train = torch.Tensor([random.randint(5, max_capa_train) for _ in range(n_trains)])[None, ...]
     obs = adj, capa_station, capa_route, capa_train, train_pos_stations, train_progress, delay_passenger, length_routes, train_pos_routes, vel, vectors
+    for item in obs:
+        item = item.to(device)
 
     return obs
 

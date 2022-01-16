@@ -1,3 +1,4 @@
+from pickle import FALSE
 from torch_scatter import scatter
 
 import utils
@@ -89,11 +90,12 @@ def get_possible_actions(adj, train_progress, train_pos_stations, train_pos_rout
     trains, stations = (adj[reached_train_station] == 1).nonzero(as_tuple=True)
     single_possible_actions = to_dense_batch(stations, trains, fill_value=-1)[0]
     single_possible_actions_ = single_possible_actions[(single_possible_actions!=-1).all(dim=-1)]
-    if single_possible_actions_.shape: # if there is only one possible action, there is no need for cart prod.
+    if FALSE:
+    # if single_possible_actions_.shape: # if there is only one possible action, there is no need for cart prod.
         actions = single_possible_actions.T[0]
     else:
         single_possible_actions = single_possible_actions.type(torch.int32)
-        actions = torch.cartesian_prod(*single_possible_actions.T)
+        actions = utils.cart_prod(single_possible_actions.T)
         actions = actions[actions!=-1]
     pat2s = torch.hstack((train_range[..., None], actions[..., None]))
     pas2s = torch.hstack((reached_train_station[..., None], actions[..., None]))
