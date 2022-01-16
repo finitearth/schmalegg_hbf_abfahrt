@@ -27,11 +27,10 @@ def train_mcts(trainer):
     pi_examples = []
     v_examples = []
     for _ in range(24):
-        print("._:")
         obs = generate_random_env()
         pi_exmp, v_exmp = trainer.execute_episodes(init_obs=obs)
         pi_examples.append(pi_exmp)
-        v_examples.append(v_examples)
+        v_examples.append(v_exmp)
     trainer.optimize(pi_examples, v_examples)
 
 
@@ -40,13 +39,13 @@ def evaluate():
 
 
 def generate_random_env():
-    n_max_stations = 100
+    n_max_stations = 64
     n_stations = int(max(7, n_max_stations * random.random()))
     max_length = 15
-    n_max_trains = 24
+    n_max_trains = 64
     n_trains = int(max(7, n_max_trains * random.random()))
     max_speed = 10
-    n_max_passenger = 1000
+    n_max_passenger = 100
     n_passenger = int(max(7, n_max_passenger * random.random()))
     max_init_delay = 2000
     max_capa_station = 10
