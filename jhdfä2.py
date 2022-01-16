@@ -1,37 +1,18 @@
-import pyautogui
-import cv2
-import numpy as np
-import time
-import keyboard
 
-from PIL import Image
+import os
+from glob import glob
+cur_path = os.getcwd()
+ignore_set = set()#["__init__.py", "count_sourcelines.py"])
 
-x_click = 1899
-y_click = 184
-x = 482
-y = 160
-x2= 1438
-y2 = 875
-c = 0
-image_list = []
-try:
-    while True:
-        pyautogui.click(x_click, y_click)
-        time.sleep(1.5)
-        image = pyautogui.screenshot()
-        image = np.array(image)
-        image = image[y:y2, x:x2]
-        image = Image.fromarray(image)
+loc_list = []
 
-        image_list.append(image)
+files = {}
+for py_file in glob("*.py") + glob("./*/*.py"):
 
-        if keyboard.is_pressed('b'):
-            raise KeyboardInterrupt(":)")
+    total_path = os.path.join(py_file)
+    loc_list.append((len(open(total_path, "r").read().splitlines())))
+    files[py_file] = len(open(total_path, "r").read().splitlines())
 
-except KeyboardInterrupt as _:
-    print("jaaaaaaajaaaaaaaaaaaa")
-    try:
-        input()
-    except KeyboardInterrupt:
-        input()
-    image_list[0].save(r'mckirchy.pdf', save_all=True, append_images=image_list[1:])
+print(sum(loc_list))
+for k, v in files.items():
+    print(k, v)
