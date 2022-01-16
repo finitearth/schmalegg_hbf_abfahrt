@@ -4,12 +4,16 @@ FROM python:3.8-slim
 ADD . .
 COPY requirements.txt .
 
+ARG input_file
 
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip3 install torch_geometric
-#RUN pip3 install torch_scatter
+RUN pip install sys
+
+
 
 WORKDIR /app
 COPY . /app
+COPY . . 
 
-CMD ["python", "main.py"]
+CMD ["python", "main.py", input_file]
